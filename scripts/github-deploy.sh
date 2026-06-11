@@ -44,7 +44,29 @@ FASTAPI_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' reportagent
 CELERY_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' reportagent_celery_worker 2>/dev/null || echo "unknown")"
 REDIS_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' reportagent_redis 2>/dev/null || echo "unknown")"
 echo "fastapi=${FASTAPI_HEALTH} celery=${CELERY_HEALTH} redis=${REDIS_HEALTH}"
+
 if [[ "$FASTAPI_HEALTH" != "healthy" ]]; then
-  echo "WARNING: fastapi container is not healthy yet"
-  docker compose -f docker-compose.prod.yml logs --tail=30 fastapi || true
+  echo "ERROR: reportagent_fastapi is not healthy" >&2
+  docker compose -f docker-compose.prod.yml logs --tail=50 fastapi || true
+  exit 1
 fi
+
+echo "==> API health (inside container)"
+docker exec reportagent_fastapi curl --fail --silent --max-time 10 http://localhost:8000/health
+echo ""
+
+# shellcheck disable=SC1091
+source .env 2>/dev/null || true
+if [[ -n "${EXTERNAL_NGINX_NETWORK:-}" ]]; then
+  NGINX_CONTAINER="${NGINX_CONTAINER:-smdg-nginx-1}"
+  if docker ps --format '{{.Names}}' | grep -qx "$NGINX_CONTAINER"; then
+    echo "==> API health via Docker nginx ($NGINX_CONTAINER)"
+    if docker exec "$NGINX_CONTAINER" curl --fail --silent --max-time 10 http://reportagent_fastapi:8000/health; then
+      echo ""
+    else
+      echo "WARNING: $NGINX_CONTAINER cannot reach reportagent_fastapi — add nginx server block (docs/nginx-docker-existing.example.conf)" >&2
+    fi
+  fi
+fi
+
+echo "==> Deploy on VPS: OK"

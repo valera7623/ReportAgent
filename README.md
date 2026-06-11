@@ -84,7 +84,8 @@ ssh-copy-id -i ~/.ssh/reportagent_deploy.pub ubuntu@YOUR_VPS_IP
 | Variable | Пример | Описание |
 |----------|--------|----------|
 | `DEPLOY_PATH` | `~/ReportAgent` | Путь на VPS (по умолчанию `$HOME/ReportAgent`, **без sudo**) |
-| `DOMAIN` | `reports.example.com` | Для health-check после деплоя |
+| `DOMAIN` | `reportagent.fileguardian.info` | Домен **в нижнем регистре**, как в nginx/DNS. Для optional health-check |
+| `SKIP_EXTERNAL_HEALTH_CHECK` | `true` | Пропустить проверку https://DOMAIN/health (если nginx ещё не настроен) |
 
 ### Environment `production`
 
