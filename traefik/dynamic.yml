@@ -1,0 +1,14 @@
+# Optional dynamic configuration for Traefik.
+# Primary routing is configured via Docker labels in docker-compose.prod.yml.
+
+http:
+  middlewares:
+    secure-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000

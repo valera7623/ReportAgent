@@ -1,0 +1,97 @@
+# Local development — no Traefik, Redis built from cached python:3.12-slim base.
+# API: http://localhost:8000/docs
+
+services:
+  fastapi:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: reportagent-app:latest
+    container_name: reportagent_fastapi
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - LOG_DIR=/app/logs
+      - PDF_DIR=/app/storage/pdfs
+      - UPLOAD_DIR=/app/storage/uploads
+    volumes:
+      - ./storage/pdfs:/app/storage/pdfs
+      - ./storage/uploads:/app/storage/uploads
+      - ./logs:/app/logs
+    networks:
+      - internal
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  celery_worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: reportagent-app:latest
+    container_name: reportagent_celery_worker
+    restart: unless-stopped
+    command: celery -A app.celery_app worker --loglevel=info
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - LOG_DIR=/app/logs
+      - PDF_DIR=/app/storage/pdfs
+      - UPLOAD_DIR=/app/storage/uploads
+    volumes:
+      - ./storage/pdfs:/app/storage/pdfs
+      - ./storage/uploads:/app/storage/uploads
+      - ./logs:/app/logs
+      - ./scripts/healthcheck_celery.sh:/usr/local/bin/healthcheck_celery.sh:ro
+    networks:
+      - internal
+    depends_on:
+      redis:
+        condition: service_healthy
+      fastapi:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/bin/healthcheck_celery.sh"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    build:
+      context: ./docker/redis
+      dockerfile: Dockerfile
+    image: reportagent-redis:local
+    container_name: reportagent_redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

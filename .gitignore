@@ -1,0 +1,36 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# Storage & logs (runtime data)
+storage/pdfs/*
+!storage/pdfs/.gitkeep
+storage/uploads/*
+!storage/uploads/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Traefik ACME
+traefik/acme/acme.json
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
