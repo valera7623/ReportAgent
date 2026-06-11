@@ -2,7 +2,7 @@
 # Executed on the VPS by GitHub Actions (or manually after SSH).
 set -euo pipefail
 
-DEPLOY_PATH="${DEPLOY_PATH:-/opt/ReportAgent}"
+DEPLOY_PATH="${DEPLOY_PATH:-${HOME}/ReportAgent}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 REPO_URL="${REPO_URL:-}"
 

@@ -83,7 +83,7 @@ ssh-copy-id -i ~/.ssh/reportagent_deploy.pub ubuntu@YOUR_VPS_IP
 
 | Variable | Пример | Описание |
 |----------|--------|----------|
-| `DEPLOY_PATH` | `/opt/ReportAgent` | Путь на VPS (по умолчанию `/opt/ReportAgent`) |
+| `DEPLOY_PATH` | `~/ReportAgent` | Путь на VPS (по умолчанию `$HOME/ReportAgent`, **без sudo**) |
 | `DOMAIN` | `reports.example.com` | Для health-check после деплоя |
 
 ### Environment `production`
@@ -92,19 +92,20 @@ ssh-copy-id -i ~/.ssh/reportagent_deploy.pub ubuntu@YOUR_VPS_IP
 
 ### Первый автодеплой
 
-1. На VPS вручную создайте `.env` **или** дождитесь первого клона и выполните:
+1. Убедитесь, что на VPS есть `.env` (после первого клона):
    ```bash
-   sudo mkdir -p /opt/ReportAgent
-   sudo chown $USER:$USER /opt/ReportAgent
-   ```
-2. Запушьте в `main` — workflow клонирует репо, создаст `.env` не будет (нужен вручную на сервере):
-   ```bash
-   # на VPS после первого деплоя / вручную до него:
+   # путь по умолчанию — домашняя папка пользователя SSH:
+   cd ~/ReportAgent
    cp .env.example .env && nano .env
    mkdir -p storage/pdfs storage/uploads logs traefik/acme
    touch traefik/acme/acme.json && chmod 600 traefik/acme/acme.json
    ```
-3. Повторный push в `main` или **Actions → Deploy to VPS → Run workflow**.
+   Для `/opt/ReportAgent` создайте каталог **один раз вручную по SSH**:
+   ```bash
+   sudo mkdir -p /opt/ReportAgent && sudo chown $USER:$USER /opt/ReportAgent
+   ```
+   и задайте GitHub Variable `DEPLOY_PATH=/opt/ReportAgent`.
+2. Запушьте в `main` — workflow клонирует репо (без sudo).
 
 Ручной запуск: Actions → **Deploy to VPS** → Run workflow.
 

@@ -48,13 +48,19 @@ jobs:
           envs: DEPLOY_PATH,DEPLOY_BRANCH,REPO_URL,GITHUB_REPOSITORY,GIT_DEPLOY_TOKEN
           script: |
             set -euo pipefail
-            DEPLOY_PATH="${DEPLOY_PATH:-/opt/ReportAgent}"
+            DEPLOY_PATH="${DEPLOY_PATH:-${HOME}/ReportAgent}"
             DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 
             if [[ ! -d "${DEPLOY_PATH}/.git" ]]; then
               echo "==> First deploy: cloning into ${DEPLOY_PATH}"
-              sudo mkdir -p "${DEPLOY_PATH}"
-              sudo chown -R "$(whoami):$(whoami)" "${DEPLOY_PATH}"
+              if [[ "${DEPLOY_PATH}" == /opt/* ]] && [[ ! -w "$(dirname "${DEPLOY_PATH}")" ]]; then
+                echo "ERROR: no write access to $(dirname "${DEPLOY_PATH}") without sudo." >&2
+                echo "Either pre-create on VPS:" >&2
+                echo "  sudo mkdir -p ${DEPLOY_PATH} && sudo chown \$(whoami):\$(whoami) ${DEPLOY_PATH}" >&2
+                echo "Or set GitHub variable DEPLOY_PATH to e.g. \${HOME}/ReportAgent" >&2
+                exit 1
+              fi
+              mkdir -p "${DEPLOY_PATH}"
               CLONE_URL="${REPO_URL}"
               if [[ -n "${GIT_DEPLOY_TOKEN:-}" ]]; then
                 CLONE_URL="https://x-access-token:${GIT_DEPLOY_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -62,6 +68,7 @@ jobs:
               git clone --branch "${DEPLOY_BRANCH}" "${CLONE_URL}" "${DEPLOY_PATH}"
             fi
 
+            export DEPLOY_PATH DEPLOY_BRANCH REPO_URL GITHUB_REPOSITORY GIT_DEPLOY_TOKEN
             bash "${DEPLOY_PATH}/scripts/github-deploy.sh"
 
       - name: External health check
