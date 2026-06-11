@@ -3,7 +3,7 @@
 set -euo pipefail
 
 DEPLOY_PATH="${DEPLOY_PATH:-${HOME}/ReportAgent}"
-DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-master}"
 REPO_URL="${REPO_URL:-}"
 
 cd "$DEPLOY_PATH"

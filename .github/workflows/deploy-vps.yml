@@ -2,7 +2,7 @@ name: Deploy to VPS
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       skip_ci:
@@ -49,7 +49,7 @@ jobs:
           script: |
             set -euo pipefail
             DEPLOY_PATH="${DEPLOY_PATH:-${HOME}/ReportAgent}"
-            DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+            DEPLOY_BRANCH="${DEPLOY_BRANCH:-master}"
 
             if [[ ! -d "${DEPLOY_PATH}/.git" ]]; then
               echo "==> First deploy: cloning into ${DEPLOY_PATH}"

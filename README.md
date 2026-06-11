@@ -48,8 +48,8 @@ Workflows в `.github/workflows/`:
 
 | Workflow | Триггер | Назначение |
 |----------|---------|------------|
-| `ci.yml` | Pull Request → `main` | Тесты, `compileall`, `docker compose config`, сборка образа |
-| `deploy-vps.yml` | Push → `main`, `workflow_dispatch` | CI + SSH-деплой на VPS |
+| `ci.yml` | Pull Request → `main` / `master` | Тесты, `compileall`, `docker compose config`, сборка образа |
+| `deploy-vps.yml` | Push → `main` / `master`, `workflow_dispatch` | CI + SSH-деплой на VPS |
 
 ### Однократная подготовка VPS
 
@@ -105,7 +105,7 @@ ssh-copy-id -i ~/.ssh/reportagent_deploy.pub ubuntu@YOUR_VPS_IP
    sudo mkdir -p /opt/ReportAgent && sudo chown $USER:$USER /opt/ReportAgent
    ```
    и задайте GitHub Variable `DEPLOY_PATH=/opt/ReportAgent`.
-2. Запушьте в `main` — workflow клонирует репо (без sudo).
+2. Запушьте в `master` (или `main`) — workflow клонирует репо (без sudo).
 
 Ручной запуск: Actions → **Deploy to VPS** → Run workflow.
 
