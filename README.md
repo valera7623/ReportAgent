@@ -318,6 +318,74 @@ ReportAgent/
 └── .env.example
 ```
 
+## Troubleshooting: port 80 already allocated
+
+```text
+Bind for 0.0.0.0:80 failed: port is already allocated
+```
+
+На VPS **уже занят порт 80** (часто nginx, apache или другой Docker-контейнер).
+
+### Узнать, кто занял порт (на VPS по SSH)
+
+```bash
+sudo ss -tlnp | grep -E ':80|:443'
+docker ps --format 'table {{.Names}}\t{{.Ports}}'
+```
+
+### Вариант A — освободить 80/443 для Traefik
+
+```bash
+# если nginx на хосте:
+sudo systemctl stop nginx
+sudo systemctl disable nginx
+
+# если другой контейнер:
+docker ps
+docker stop <имя_контейнера>
+```
+
+Затем снова deploy (GitHub Actions или `./deploy.sh`).
+
+### Вариант B — nginx уже в Docker (`smdg-nginx-1` и т.п.)
+
+Traefik ReportAgent **не нужен** — 80/443 уже у другого стека.
+
+**1. Узнайте имя Docker-сети nginx:**
+```bash
+docker inspect smdg-nginx-1 --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
+# обычно: smdg_default
+```
+
+**2. В `~/ReportAgent/.env` на VPS:**
+```bash
+TRAEFIK_ENABLED=false
+EXTERNAL_NGINX_NETWORK=smdg_default
+DOMAIN=fileguardian.info
+```
+
+**3. Удалите сломанный traefik и передеплойте:**
+```bash
+docker rm -f reportagent_traefik 2>/dev/null || true
+cd ~/ReportAgent && git pull && ./deploy.sh
+```
+
+**4. В nginx проекта smdg** добавьте прокси на `http://reportagent_fastapi:8000`  
+(пример: `docs/nginx-docker-existing.example.conf`), перезагрузите nginx:
+```bash
+docker exec smdg-nginx-1 nginx -s reload
+```
+
+**5. Проверка из nginx-контейнера:**
+```bash
+docker exec smdg-nginx-1 curl -s http://reportagent_fastapi:8000/health
+```
+
+### Вариант C — nginx на хосте (не в Docker)
+
+В `.env`: `TRAEFIK_ENABLED=false` (без `EXTERNAL_NGINX_NETWORK`).  
+FastAPI на `127.0.0.1:8000` — см. `docs/nginx-host.example.conf`.
+
 ## Troubleshooting: Docker Hub timeout
 
 Ошибка вида:

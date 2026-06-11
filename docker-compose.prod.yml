@@ -96,6 +96,7 @@ services:
       start_period: 10s
 
   traefik:
+    profiles: ["traefik"]
     image: ${TRAEFIK_IMAGE:-traefik:v3.0}
     container_name: reportagent_traefik
     restart: unless-stopped

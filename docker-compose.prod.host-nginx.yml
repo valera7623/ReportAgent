@@ -1,0 +1,7 @@
+# Use with TRAEFIK_ENABLED=false when nginx/apache already listens on 80/443.
+# FastAPI is exposed only on localhost:8000 for the host reverse proxy.
+
+services:
+  fastapi:
+    ports:
+      - "127.0.0.1:8000:8000"
