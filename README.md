@@ -42,7 +42,73 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-## Деплой на VPS
+## GitHub Actions — автодеплой на VPS
+
+Workflows в `.github/workflows/`:
+
+| Workflow | Триггер | Назначение |
+|----------|---------|------------|
+| `ci.yml` | Pull Request → `main` | Тесты, `compileall`, `docker compose config`, сборка образа |
+| `deploy-vps.yml` | Push → `main`, `workflow_dispatch` | CI + SSH-деплой на VPS |
+
+### Однократная подготовка VPS
+
+```bash
+# Docker + compose (если ещё нет)
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER   # перелогиниться
+
+# Сеть Traefik
+docker network create traefik_network 2>/dev/null || true
+
+# SSH-ключ для GitHub Actions (на вашем ПК)
+ssh-keygen -t ed25519 -C "github-actions-reportagent" -f ~/.ssh/reportagent_deploy
+ssh-copy-id -i ~/.ssh/reportagent_deploy.pub ubuntu@YOUR_VPS_IP
+```
+
+Публичный ключ пользователя VPS должен быть в `~/.ssh/authorized_keys`.  
+Приватный ключ `reportagent_deploy` — в GitHub Secret `VPS_SSH_PRIVATE_KEY`.
+
+### Secrets (Settings → Secrets and variables → Actions)
+
+| Secret | Пример | Описание |
+|--------|--------|----------|
+| `VPS_HOST` | `203.0.113.10` | IP или домен VPS |
+| `VPS_USER` | `ubuntu` | SSH-пользователь |
+| `VPS_SSH_PRIVATE_KEY` | содержимое `reportagent_deploy` | Приватный SSH-ключ |
+| `VPS_PORT` | `22` | SSH-порт (опционально) |
+| `GIT_DEPLOY_TOKEN` | GitHub PAT | Только для **приватного** репозитория (`repo` scope) |
+
+### Variables (не секреты)
+
+| Variable | Пример | Описание |
+|----------|--------|----------|
+| `DEPLOY_PATH` | `/opt/ReportAgent` | Путь на VPS (по умолчанию `/opt/ReportAgent`) |
+| `DOMAIN` | `reports.example.com` | Для health-check после деплоя |
+
+### Environment `production`
+
+Создайте environment **production** в GitHub (Settings → Environments) — можно включить manual approval перед деплоем.
+
+### Первый автодеплой
+
+1. На VPS вручную создайте `.env` **или** дождитесь первого клона и выполните:
+   ```bash
+   sudo mkdir -p /opt/ReportAgent
+   sudo chown $USER:$USER /opt/ReportAgent
+   ```
+2. Запушьте в `main` — workflow клонирует репо, создаст `.env` не будет (нужен вручную на сервере):
+   ```bash
+   # на VPS после первого деплоя / вручную до него:
+   cp .env.example .env && nano .env
+   mkdir -p storage/pdfs storage/uploads logs traefik/acme
+   touch traefik/acme/acme.json && chmod 600 traefik/acme/acme.json
+   ```
+3. Повторный push в `main` или **Actions → Deploy to VPS → Run workflow**.
+
+Ручной запуск: Actions → **Deploy to VPS** → Run workflow.
+
+## Деплой на VPS (вручную)
 
 Требования: **Ubuntu 22.04+**, Docker и Docker Compose plugin установлены, DNS A-запись домена указывает на IP сервера.
 
@@ -241,6 +307,9 @@ ReportAgent/
 ├── scripts/
 ├── storage/
 ├── logs/
+├── .github/workflows/
+│   ├── ci.yml
+│   └── deploy-vps.yml
 ├── docker-compose.prod.yml
 ├── docker-compose.dev.yml
 ├── deploy.sh

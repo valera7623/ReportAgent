@@ -1,0 +1,84 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_ci:
+        description: Skip CI checks (not recommended)
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+concurrency:
+  group: deploy-vps-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    if: github.event_name != 'workflow_dispatch' || inputs.skip_ci != 'true'
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: ci
+    if: always() && (needs.ci.result == 'success' || needs.ci.result == 'skipped')
+    environment: production
+    timeout-minutes: 45
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+          REPO_URL: https://github.com/${{ github.repository }}.git
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GIT_DEPLOY_TOKEN: ${{ secrets.GIT_DEPLOY_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          command_timeout: 40m
+          envs: DEPLOY_PATH,DEPLOY_BRANCH,REPO_URL,GITHUB_REPOSITORY,GIT_DEPLOY_TOKEN
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/ReportAgent}"
+            DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+
+            if [[ ! -d "${DEPLOY_PATH}/.git" ]]; then
+              echo "==> First deploy: cloning into ${DEPLOY_PATH}"
+              sudo mkdir -p "${DEPLOY_PATH}"
+              sudo chown -R "$(whoami):$(whoami)" "${DEPLOY_PATH}"
+              CLONE_URL="${REPO_URL}"
+              if [[ -n "${GIT_DEPLOY_TOKEN:-}" ]]; then
+                CLONE_URL="https://x-access-token:${GIT_DEPLOY_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+              fi
+              git clone --branch "${DEPLOY_BRANCH}" "${CLONE_URL}" "${DEPLOY_PATH}"
+            fi
+
+            bash "${DEPLOY_PATH}/scripts/github-deploy.sh"
+
+      - name: External health check
+        if: vars.DOMAIN != ''
+        run: |
+          echo "Waiting for services..."
+          sleep 25
+          for i in 1 2 3 4 5; do
+            if curl --fail --silent --max-time 20 "https://${DOMAIN}/health"; then
+              echo ""
+              echo "Deploy verified: https://${DOMAIN}/health"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+          echo "ERROR: https://${DOMAIN}/health is not reachable"
+          exit 1
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
