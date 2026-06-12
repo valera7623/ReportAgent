@@ -29,6 +29,7 @@ class VoiceGenerateReportResponse(BaseModel):
     download_url: str | None = None
     user_id: str | None = None
     usage_count: int = 0
+    transcription_error: str | None = None
 
 
 class VoiceClarifyRequest(BaseModel):

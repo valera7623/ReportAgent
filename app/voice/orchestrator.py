@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -27,12 +26,26 @@ class VoiceProcessResult:
     file_path: str | None
     preferences: dict[str, Any]
     clarification_question: str | None = None
+    transcription_error: str | None = None
     duration_seconds: float | None = None
     confidence: float | None = None
     error: str | None = None
 
 
-def _build_clarification_question(intent: dict[str, Any]) -> str:
+def _build_clarification_question(intent: dict[str, Any], transcription_error: str | None = None) -> str:
+    if transcription_error:
+        if "OPENAI_API_KEY" in transcription_error:
+            return (
+                "Голосовой сервис не настроен на сервере (OPENAI_API_KEY). "
+                "Обратитесь к администратору или используйте POST /voice/clarify с текстом запроса."
+            )
+        if "Whisper API error" in transcription_error:
+            return (
+                f"Ошибка распознавания речи: {transcription_error}. "
+                "Проверьте OPENAI_API_KEY и баланс OpenAI, или уточните запрос текстом через POST /voice/clarify."
+            )
+        if "too short" in transcription_error.lower() or "empty" in transcription_error.lower():
+            return "Аудио слишком короткое или пустое. Запишите сообщение длиннее 1 секунды."
     missing = intent.get("missing_info") or []
     if "transcript" in missing or not intent.get("raw_transcript"):
         return "Не удалось распознать речь. Повторите запрос чётче или укажите текстом источник данных."
@@ -94,11 +107,13 @@ def process_voice(
         intent = existing_intent
         duration = None
         confidence = None
+        transcription_error = None
     else:
         tx = transcribe_audio(audio_path)
         transcript = tx["text"]
         duration = tx.get("duration_seconds")
         confidence = tx.get("confidence")
+        transcription_error = tx.get("error")
         intent = parse_intent(transcript, user_preferences)
 
     email = email_override or intent.get("target_email")
@@ -110,7 +125,9 @@ def process_voice(
     preferences = _merge_preferences(user_preferences, intent)
 
     if not transcript.strip():
-        intent.setdefault("missing_info", []).append("transcript")
+        if "transcript" not in intent.get("missing_info", []):
+            intent.setdefault("missing_info", []).append("transcript")
+        question = _build_clarification_question(intent, transcription_error)
         return VoiceProcessResult(
             status="needs_clarification",
             transcript=transcript,
@@ -119,7 +136,8 @@ def process_voice(
             sheets_url=None,
             file_path=None,
             preferences=preferences,
-            clarification_question=_build_clarification_question(intent),
+            clarification_question=question,
+            transcription_error=transcription_error,
             duration_seconds=duration,
             confidence=confidence,
         )

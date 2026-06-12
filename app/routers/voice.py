@@ -130,6 +130,7 @@ async def voice_generate_report(
                 partial_intent=result.intent,
                 user_id=user_id,
                 usage_count=usage_count,
+                transcription_error=result.transcription_error,
             )
 
         celery_task = generate_voice_report.delay(
