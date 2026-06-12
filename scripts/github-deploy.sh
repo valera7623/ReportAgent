@@ -47,7 +47,10 @@ echo "fastapi=${FASTAPI_HEALTH} celery=${CELERY_HEALTH} redis=${REDIS_HEALTH}"
 
 if [[ "$FASTAPI_HEALTH" != "healthy" ]]; then
   echo "ERROR: reportagent_fastapi is not healthy" >&2
-  docker compose -f docker-compose.prod.yml logs --tail=50 fastapi || true
+  docker compose -f docker-compose.prod.yml logs --tail=80 fastapi || true
+  echo "==> Container inspect" >&2
+  docker inspect reportagent_fastapi --format='Status={{.State.Status}} ExitCode={{.State.ExitCode}} Error={{.State.Error}}' 2>/dev/null || true
+  echo "Hint: ensure DATABASE_URL in .env is SQLite or remove it (compose sets sqlite:////app/app/data/users.db)" >&2
   exit 1
 fi
 

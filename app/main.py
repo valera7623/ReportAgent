@@ -32,7 +32,11 @@ logger = get_logger("main", "log_api.log")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    run_migrations()
+    try:
+        run_migrations()
+    except Exception as exc:
+        logger.exception("Database migration failed on startup: %s", exc)
+        raise
     yield
 
 

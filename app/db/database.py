@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 import sqlite3
@@ -11,6 +12,10 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, TypedDict
+
+_logger = logging.getLogger("database")
+
+DEFAULT_SQLITE_URL = "sqlite:///./app/data/users.db"
 
 DEFAULT_CHART_TYPE = os.getenv("DEFAULT_PREFERRED_CHART_TYPE", "bar")
 
@@ -50,15 +55,21 @@ def default_preferences() -> dict[str, Any]:
 
 def resolve_db_path() -> Path:
     """Resolve SQLite file path from DATABASE_URL."""
-    url = os.getenv("DATABASE_URL", "sqlite:///./app/data/users.db")
-    if url.startswith("sqlite:///"):
-        raw = url.removeprefix("sqlite:///")
-        path = Path(raw)
-        if not path.is_absolute():
-            # WORKDIR is /app in Docker; ./app/data -> /app/app/data
-            path = Path.cwd() / path
-        return path
-    raise ValueError(f"Unsupported DATABASE_URL: {url}")
+    url = os.getenv("DATABASE_URL", DEFAULT_SQLITE_URL)
+    if not url.startswith("sqlite:///"):
+        _logger.warning(
+            "DATABASE_URL is not SQLite (%s); falling back to %s",
+            url.split("://", 1)[0],
+            DEFAULT_SQLITE_URL,
+        )
+        url = DEFAULT_SQLITE_URL
+
+    raw = url.removeprefix("sqlite:///")
+    path = Path(raw)
+    if not path.is_absolute():
+        # WORKDIR is /app in Docker; ./app/data -> /app/app/data
+        path = Path.cwd() / path
+    return path
 
 
 def mask_api_key(api_key: str) -> str:

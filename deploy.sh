@@ -46,7 +46,7 @@ else
   fi
 fi
 
-mkdir -p storage/pdfs storage/uploads logs traefik/acme
+mkdir -p app/data storage/pdfs storage/uploads logs traefik/acme
 touch traefik/acme/acme.json
 chmod 600 traefik/acme/acme.json 2>/dev/null || true
 chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh 2>/dev/null || true

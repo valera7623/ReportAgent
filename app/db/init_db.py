@@ -15,7 +15,11 @@ MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 def run_migrations() -> None:
     """Create data directory and apply pending SQL migrations."""
     db_path = resolve_db_path()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        logger.error("Cannot create database directory %s: %s", db_path.parent, exc)
+        raise
     logger.info("Database path: %s", db_path)
 
     migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
