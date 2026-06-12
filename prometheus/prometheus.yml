@@ -23,26 +23,26 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - fastapi:8000
+          - reportagent_fastapi:8000
         labels:
           service: fastapi
 
   - job_name: node_exporter
     static_configs:
       - targets:
-          - node_exporter:9100
+          - reportagent_node_exporter:9100
         labels:
           service: node_exporter
 
   - job_name: cadvisor
     static_configs:
       - targets:
-          - cadvisor:8080
+          - reportagent_cadvisor:8080
         labels:
           service: cadvisor
 
   - job_name: alertmanager
     static_configs:
       - targets:
-          - alertmanager:9093
+          - reportagent_alertmanager:9093
 

@@ -310,6 +310,36 @@ OBSERVABILITY_HOST_METRICS=false
 
 Останутся Prometheus + Grafana + метрики приложения.
 
+### External nginx (без Traefik) — Grafana
+
+Если `TRAEFIK_ENABLED=false` и ReportAgent за **smdg-nginx**:
+
+1. В `.env`:
+   ```bash
+   GRAFANA_DOMAIN=grafana.reportagent.fileguardian.info
+   EXTERNAL_NGINX_NETWORK=smdg_frontend   # сеть вашего nginx
+   ```
+2. DNS: **A-запись** `grafana.reportagent.fileguardian.info` → IP VPS.
+3. `./deploy.sh` — Grafana подключается к сети nginx (`docker-compose.prod.external-nginx.yml`).
+4. В nginx добавьте proxy → `http://reportagent_grafana:3000` — пример: `docs/nginx-grafana.example.conf`.
+5. Диагностика на VPS:
+   ```bash
+   ./scripts/diagnose_observability.sh
+   ```
+
+**Prometheus** внутри Docker использует **имена контейнеров** (`reportagent_fastapi:8000`), не `fastapi:8000`:
+
+```bash
+docker exec reportagent_prometheus wget -qO- http://reportagent_fastapi:8000/metrics | head -5
+```
+
+Без DNS для Grafana — SSH-туннель с VPS:
+
+```bash
+# на VPS
+docker exec reportagent_grafana curl -s http://localhost:3000/api/health
+```
+
 ### Grafana setup script
 
 ```bash

@@ -1,8 +1,13 @@
 # TRAEFIK_ENABLED=false + EXTERNAL_NGINX_NETWORK=smdg_default
-# Connects FastAPI to an existing Docker nginx stack (no ports 80/443 on ReportAgent).
+# Connects FastAPI and Grafana to an existing Docker nginx stack (no ports 80/443 on ReportAgent).
 
 services:
   fastapi:
+    networks:
+      - internal
+      - external_nginx
+
+  grafana:
     networks:
       - internal
       - external_nginx

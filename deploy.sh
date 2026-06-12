@@ -79,7 +79,8 @@ mkdir -p \
   grafana/provisioning/datasources grafana/provisioning/dashboards grafana/dashboards
 
 chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh \
-  scripts/setup-grafana.sh scripts/render-alertmanager.sh scripts/test_alerts.py 2>/dev/null || true
+  scripts/setup-grafana.sh scripts/render-alertmanager.sh scripts/test_alerts.py \
+  scripts/diagnose_observability.sh 2>/dev/null || true
 
 echo "==> Rendering Alertmanager config"
 ./scripts/render-alertmanager.sh

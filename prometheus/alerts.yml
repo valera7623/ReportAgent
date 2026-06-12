@@ -64,7 +64,7 @@ groups:
           severity: critical
         annotations:
           summary: "FastAPI metrics target down"
-          description: "Prometheus cannot scrape fastapi:8000/metrics for 1 minute."
+          description: "Prometheus cannot scrape reportagent_fastapi:8000/metrics for 1 minute."
           grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
 
       - alert: HighCPUUsage
