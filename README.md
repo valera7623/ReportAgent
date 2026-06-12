@@ -187,10 +187,29 @@ curl -X POST https://ваш-домен/voice/clarify \
 ### Тест
 
 ```bash
-# В .env: OPENAI_API_KEY=sk-...
-python3 -m pip install httpx
-python3 scripts/test_voice.py --audio path/to/recording.wav
+# 1. ReportAgent API key (НЕ OpenAI key!)
+API_KEY=$(curl -s -X POST "https://ваш-домен/api/keys/generate" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com"}' | jq -r .api_key)
+
+# 2. Убедитесь, что файл существует (curl error 26 = файл не найден)
+ls -la recording.m4a
+
+curl -X POST "https://ваш-домен/voice/generate_report" \
+  -H "X-API-Key: $API_KEY" \
+  -F "audio=@recording.m4a"
+
+# Скрипт (stdlib, без pip install):
+python3 scripts/test_voice.py \
+  --base-url https://ваш-домен \
+  --api-key "$API_KEY" \
+  --audio /path/to/recording.wav
 ```
+
+| Ключ | Куда |
+|------|------|
+| ReportAgent API key | Заголовок `X-API-Key` (из `/api/keys/generate`) |
+| OpenAI `sk-...` | Только в `.env` на сервере как `OPENAI_API_KEY` |
 
 Логи: `logs/log_voice.log`. История запросов: `history.request_type = 'voice'`.
 
