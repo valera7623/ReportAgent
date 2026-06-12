@@ -65,9 +65,9 @@ def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> d
     )
 
     try:
-        from openai import OpenAI
+        from app.voice.openai_client import create_openai_client
 
-        client = OpenAI(api_key=api_key)
+        client = create_openai_client()
         response = client.chat.completions.create(
             model=LLM_MODEL(),
             response_format={"type": "json_object"},

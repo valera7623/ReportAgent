@@ -22,6 +22,7 @@ services:
       - DATABASE_URL=sqlite:////app/app/data/users.db
       - DEFAULT_PREFERRED_CHART_TYPE=${DEFAULT_PREFERRED_CHART_TYPE:-bar}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - WHISPER_MODEL=${WHISPER_MODEL:-whisper-1}
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
       - VOICE_ENABLED=${VOICE_ENABLED:-true}
@@ -63,6 +64,7 @@ services:
       - DATABASE_URL=sqlite:////app/app/data/users.db
       - DEFAULT_PREFERRED_CHART_TYPE=${DEFAULT_PREFERRED_CHART_TYPE:-bar}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - WHISPER_MODEL=${WHISPER_MODEL:-whisper-1}
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
       - VOICE_ENABLED=${VOICE_ENABLED:-true}

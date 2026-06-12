@@ -125,6 +125,7 @@ curl -X DELETE https://ваш-домен/api/preferences -H "X-API-Key: KEY"
 | Переменная | Описание |
 |------------|----------|
 | `OPENAI_API_KEY` | **Обязателен** для голоса (Whisper + LLM) |
+| `OPENAI_BASE_URL` | Для [ProxyAPI.ru](https://proxyapi.ru): `https://api.proxyapi.ru/openai/v1`. Пусто = официальный OpenAI |
 | `VOICE_ENABLED` | `true` / `false` — вкл/выкл эндпоинты |
 | `WHISPER_MODEL` | `whisper-1` (OpenAI API) |
 | `LLM_MODEL` | `gpt-4o-mini` (intent parsing) |
@@ -342,6 +343,7 @@ localhost (WSL)  ──push──►  GitHub  ──Actions/SSH──►  VPS
 | `TRAEFIK_ENABLED` | `true` — Traefik; `false` — host/external nginx |
 | `EXTERNAL_NGINX_NETWORK` | Имя Docker-сети nginx (режим B) |
 | `OPENAI_API_KEY` | Для голосового ввода (Whisper + GPT) |
+| `OPENAI_BASE_URL` | ProxyAPI: `https://api.proxyapi.ru/openai/v1` |
 | `VOICE_ENABLED` | `true` — включить `/voice/*` |
 
 ### 2. Подготовка и запуск
@@ -582,6 +584,20 @@ docker logs reportagent_fastapi --tail 50
 
 `https://fileguardian.info` → SMDG, `https://ReportAgent.fileguardian.info` → ReportAgent.  
 Проверяйте health на **поддомене** ReportAgent.
+
+### Whisper 401 / пустой transcript (ProxyAPI)
+
+Ключ ProxyAPI **не работает** с `api.openai.com`. В `.env` на VPS:
+
+```bash
+OPENAI_API_KEY=ваш_ключ_из_proxyapi.ru
+OPENAI_BASE_URL=https://api.proxyapi.ru/openai/v1
+```
+
+```bash
+./deploy.sh
+./scripts/diagnose_voice.sh recording.wav
+```
 
 ### port 80 already allocated
 

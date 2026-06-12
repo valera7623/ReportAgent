@@ -20,13 +20,18 @@ ls -la "$AUDIO"
 file "$AUDIO" || true
 echo
 
-echo "2. OPENAI_API_KEY in container (length only):"
+echo "2. OpenAI / ProxyAPI config in container:"
 docker exec "$CONTAINER" python3 -c "
 import os
 k = os.getenv('OPENAI_API_KEY', '')
-print('  set:', bool(k), '| length:', len(k))
+base = os.getenv('OPENAI_BASE_URL', '') or '(default api.openai.com)'
+print('  OPENAI_API_KEY set:', bool(k), '| length:', len(k))
+print('  OPENAI_BASE_URL:', base)
 if k and not k.startswith('sk-'):
     print('  WARNING: key does not start with sk-')
+if not os.getenv('OPENAI_BASE_URL') and len(k) < 50:
+    print('  HINT: short key without OPENAI_BASE_URL? Use ProxyAPI:')
+    print('        OPENAI_BASE_URL=https://api.proxyapi.ru/openai/v1')
 "
 echo
 

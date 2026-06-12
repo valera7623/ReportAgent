@@ -79,9 +79,9 @@ def transcribe_audio(file_path: str) -> dict[str, Any]:
     whisper_path, temp_path = _normalize_audio_for_whisper(path)
 
     try:
-        from openai import OpenAI
+        from app.voice.openai_client import create_openai_client
 
-        client = OpenAI(api_key=api_key)
+        client = create_openai_client()
         model = WHISPER_MODEL()
 
         with whisper_path.open("rb") as audio_file:
