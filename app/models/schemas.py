@@ -38,6 +38,7 @@ class TaskState(str, Enum):
     FAILURE = "FAILURE"
     RETRY = "RETRY"
     REVOKED = "REVOKED"
+    NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
 
 
 class GenerateReportResponse(BaseModel):

@@ -47,6 +47,10 @@ else
 fi
 
 mkdir -p app/data storage/pdfs storage/uploads logs traefik/acme
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "WARNING: ffmpeg not found on host (optional; required inside Docker image for voice/pydub)."
+fi
 touch traefik/acme/acme.json
 chmod 600 traefik/acme/acme.json 2>/dev/null || true
 chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh 2>/dev/null || true

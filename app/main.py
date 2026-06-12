@@ -22,8 +22,10 @@ from app.models.schemas import (
     TaskState,
     TaskStatusResponse,
 )
-from app.routers import keys, preferences
+from app.routers import keys, preferences, voice
 from app.tasks import generate_report
+from app.voice.config import voice_available
+from app.voice.redis_store import get_voice_status, load_partial_state
 from app.utils.logger import get_logger
 from app.utils.paths import resolve_pdf_path
 
@@ -47,7 +49,7 @@ app = FastAPI(
         "Receive it by email or download via API. "
         "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
     ),
-    version="1.2.0",
+    version="1.3.0",
     lifespan=lifespan,
 )
 
@@ -56,6 +58,7 @@ app.add_middleware(APIKeyAuthMiddleware)
 
 app.include_router(keys.router)
 app.include_router(preferences.router)
+app.include_router(voice.router)
 
 
 def _build_queue_message(email: str | None, task_id: str) -> str:
@@ -73,6 +76,7 @@ async def root() -> dict[str, str]:
         "health": "/health",
         "sample_csv": "/samples/sample_sales.csv",
         "api_keys": "/api/keys/generate",
+        "voice": "/voice/generate_report" if voice_available() else "disabled",
     }
 
 
@@ -160,6 +164,19 @@ async def generate_report_endpoint(
 @app.get("/tasks/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(task_id: str) -> TaskStatusResponse:
     """Check Celery task status and result."""
+    voice_status = get_voice_status(task_id)
+    if voice_status == "needs_clarification":
+        partial = load_partial_state(task_id) or {}
+        return TaskStatusResponse(
+            task_id=task_id,
+            status=TaskState.NEEDS_CLARIFICATION,
+            result={
+                "clarification_question": partial.get("clarification_question"),
+                "partial_intent": partial.get("partial_intent"),
+                "transcript": partial.get("transcript"),
+            },
+        )
+
     result = AsyncResult(task_id, app=celery_app)
 
     state = result.state

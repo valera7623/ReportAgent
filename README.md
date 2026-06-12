@@ -2,16 +2,16 @@
 
 Micro-SaaS for generating PDF reports with charts from CSV/Excel uploads or public Google Sheets. Reports are delivered by email via SMTP.
 
-**v1.2** — API-key authentication, per-user preferences (chart type, theme, default email), and SQLite-backed session memory between requests.
+**v1.3** — voice input (Whisper + GPT intent), API keys, per-user preferences, SQLite memory.
 
 ## Architecture
 
 ```
 Client → Traefik / nginx (TLS) → FastAPI → Celery → Redis
-                                      ↓
-              context_loader → parser → analyst → visualizer → sender (PDF + SMTP)
-                                      ↓
-                                 SQLite (users.db)
+                         ↓              ↓
+                    Voice (Whisper   context_loader → parser → analyst → visualizer → sender
+                     + GPT intent)         ↓
+                                      SQLite (users.db)
 ```
 
 | Service           | Role                                              |
@@ -115,6 +115,84 @@ curl -X DELETE https://ваш-домен/api/preferences -H "X-API-Key: KEY"
 | `default_email`        | email                 | Email по умолчанию, если не указан в запросе |
 | `company_logo_url`     | URL                   | Логотип в PDF (если доступен по URL)        |
 | `timezone`             | IANA, напр. `UTC`     | Метаданные (расширяемо)                     |
+
+## Voice input
+
+Голосовой запрос: аудио → Whisper (транскрипция) → GPT-4o-mini (intent) → отчёт или уточняющий вопрос.
+
+### Требования
+
+| Переменная | Описание |
+|------------|----------|
+| `OPENAI_API_KEY` | **Обязателен** для голоса (Whisper + LLM) |
+| `VOICE_ENABLED` | `true` / `false` — вкл/выкл эндпоинты |
+| `WHISPER_MODEL` | `whisper-1` (OpenAI API) |
+| `LLM_MODEL` | `gpt-4o-mini` (intent parsing) |
+| `MAX_AUDIO_SIZE_MB` | Лимит размера файла (по умолчанию 25) |
+| `ALLOWED_AUDIO_FORMATS` | `mp3,wav,m4a,ogg` |
+
+В Docker-образе установлен **ffmpeg** (для pydub / конвертации). На хосте ffmpeg опционален.
+
+Без `OPENAI_API_KEY` эндпоинты `/voice/*` возвращают **501 Not Implemented**.
+
+### Поддерживаемые форматы
+
+`mp3`, `wav`, `m4a`, `ogg` — до `MAX_AUDIO_SIZE_MB` МБ.
+
+### `POST /voice/generate_report`
+
+Требует `X-API-Key`. Form-data: поле `audio` (файл), опционально `email`.
+
+```bash
+curl -X POST https://ваш-домен/voice/generate_report \
+  -H "X-API-Key: YOUR_KEY" \
+  -F "audio=@recording.m4a" \
+  -F "email=user@example.com"
+```
+
+**Ответ** `202`:
+
+```json
+{
+  "task_id": "abc-123",
+  "status": "queued",
+  "transcript": "Создай отчёт по Google Sheets ...",
+  "intent": { "source_type": "sheets_url", "chart_type": "pie", ... },
+  "download_url": "/tasks/abc-123/pdf"
+}
+```
+
+Если данных недостаточно — `status: "needs_clarification"` и поля `clarification_question`, `partial_intent`.  
+`task_id` сохраняется в Redis для follow-up.
+
+### `POST /voice/clarify`
+
+```bash
+curl -X POST https://ваш-домен/voice/clarify \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"task_id": "voice-abc...", "answer": "используй колонку revenue из Google Sheets"}'
+```
+
+### Уточняющие вопросы
+
+| Ситуация | Пример вопроса |
+|----------|----------------|
+| Не распознана речь | Повторите запрос чётче |
+| Нет источника данных | Укажите ссылку на Google Sheets |
+| Запрошен файл голосом | Предложите Sheets URL или `POST /generate_report` с файлом |
+
+Статус уточнения: `GET /tasks/{task_id}` → `NEEDS_CLARIFICATION`.
+
+### Тест
+
+```bash
+# В .env: OPENAI_API_KEY=sk-...
+python3 -m pip install httpx
+python3 scripts/test_voice.py --audio path/to/recording.wav
+```
+
+Логи: `logs/log_voice.log`. История запросов: `history.request_type = 'voice'`.
 
 ## Production (VPS)
 
@@ -244,6 +322,8 @@ localhost (WSL)  ──push──►  GitHub  ──Actions/SSH──►  VPS
 | `DEFAULT_PREFERRED_CHART_TYPE` | `bar` / `line` / `pie` для новых пользователей |
 | `TRAEFIK_ENABLED` | `true` — Traefik; `false` — host/external nginx |
 | `EXTERNAL_NGINX_NETWORK` | Имя Docker-сети nginx (режим B) |
+| `OPENAI_API_KEY` | Для голосового ввода (Whisper + GPT) |
+| `VOICE_ENABLED` | `true` — включить `/voice/*` |
 
 ### 2. Подготовка и запуск
 
@@ -303,6 +383,8 @@ curl -OJ -H "X-API-Key: $API_KEY" "https://ваш-домен/tasks/${TASK_ID}/pd
 | `PUT` | `/api/preferences` | Обновить настройки |
 | `DELETE` | `/api/preferences` | Сбросить к дефолтам |
 | `POST` | `/generate_report` | Поставить задачу на отчёт |
+| `POST` | `/voice/generate_report` | Отчёт из голосового сообщения (501 без OpenAI) |
+| `POST` | `/voice/clarify` | Уточнение для голосового запроса |
 | `GET` | `/tasks/{task_id}` | Статус задачи |
 | `GET` | `/tasks/{task_id}/pdf` | Скачать PDF |
 | `GET` | `/samples/sample_sales.csv` | Тестовый CSV |
@@ -348,6 +430,7 @@ Multipart form:
 
 | Agent                 | File                         | Log file                    |
 |-----------------------|------------------------------|-----------------------------|
+| `voice_orchestrator`  | `app/voice/orchestrator.py`  | `logs/log_voice.log`        |
 | `agent_context_loader`| `app/agents/context_loader.py` | `logs/log_context_loader.log` |
 | `agent_parser`        | `app/agents/parser.py`       | `logs/log_parser.log`       |
 | `agent_analyst`       | `app/agents/analyst.py`      | `logs/log_analyst.log`      |
@@ -413,6 +496,15 @@ ReportAgent/
 │   │   ├── analyst.py
 │   │   ├── visualizer.py
 │   │   └── sender.py
+│   ├── voice/
+│   │   ├── transcriber.py
+│   │   ├── intent_parser.py
+│   │   ├── orchestrator.py
+│   │   └── models.py
+│   ├── routers/
+│   │   ├── keys.py
+│   │   ├── preferences.py
+│   │   └── voice.py
 │   ├── db/
 │   │   ├── database.py
 │   │   ├── init_db.py
@@ -420,9 +512,6 @@ ReportAgent/
 │   ├── middleware/
 │   │   ├── auth.py
 │   │   └── request_logging.py
-│   ├── routers/
-│   │   ├── keys.py
-│   │   └── preferences.py
 │   ├── models/
 │   ├── data/              # users.db (gitignored)
 │   ├── utils/
@@ -431,6 +520,7 @@ ReportAgent/
 │   └── requirements.txt
 ├── scripts/
 │   ├── test_api_key.py
+│   ├── test_voice.py
 │   └── github-deploy.sh
 ├── docs/
 ├── traefik/

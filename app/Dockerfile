@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     libfreetype6 \
     fontconfig \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local

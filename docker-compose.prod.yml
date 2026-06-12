@@ -17,6 +17,12 @@ services:
       # Fixed SQLite path — do not inherit legacy postgresql DATABASE_URL from .env
       - DATABASE_URL=sqlite:////app/app/data/users.db
       - DEFAULT_PREFERRED_CHART_TYPE=${DEFAULT_PREFERRED_CHART_TYPE:-bar}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WHISPER_MODEL=${WHISPER_MODEL:-whisper-1}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - VOICE_ENABLED=${VOICE_ENABLED:-true}
+      - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
+      - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/uploads:/app/storage/uploads
@@ -66,6 +72,12 @@ services:
       - UPLOAD_DIR=/app/storage/uploads
       - DATABASE_URL=sqlite:////app/app/data/users.db
       - DEFAULT_PREFERRED_CHART_TYPE=${DEFAULT_PREFERRED_CHART_TYPE:-bar}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WHISPER_MODEL=${WHISPER_MODEL:-whisper-1}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - VOICE_ENABLED=${VOICE_ENABLED:-true}
+      - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
+      - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/uploads:/app/storage/uploads

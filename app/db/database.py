@@ -288,16 +288,26 @@ def log_history(
     user_id: str,
     request_summary: str,
     task_id: str | None = None,
+    request_type: str = "api",
 ) -> None:
     summary = request_summary[:100] if request_summary else ""
     with get_connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO history (user_id, task_id, request_summary)
-            VALUES (?, ?, ?)
-            """,
-            (user_id, task_id, summary),
-        )
+        try:
+            conn.execute(
+                """
+                INSERT INTO history (user_id, task_id, request_summary, request_type)
+                VALUES (?, ?, ?, ?)
+                """,
+                (user_id, task_id, summary, request_type),
+            )
+        except sqlite3.OperationalError:
+            conn.execute(
+                """
+                INSERT INTO history (user_id, task_id, request_summary)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, task_id, summary),
+            )
 
 
 def resolve_email_for_user(

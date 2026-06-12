@@ -18,6 +18,10 @@ if [[ -f .env ]]; then
 fi
 
 mkdir -p app/data storage/pdfs storage/uploads logs
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "NOTE: ffmpeg not on host — voice audio processing runs inside Docker (ffmpeg in image)."
+fi
 chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh 2>/dev/null || true
 
 echo "==> Building images (app + redis, no registry pull)"
