@@ -2,6 +2,8 @@
 
 Micro-SaaS for generating PDF reports with charts from CSV/Excel uploads or public Google Sheets. Reports are delivered by email via SMTP.
 
+**v1.4** — Prometheus + Grafana observability, Telegram alerts, agent metrics.
+
 **v1.3** — voice input (Whisper + GPT intent), API keys, per-user preferences, SQLite memory.
 
 ## Architecture
@@ -21,6 +23,10 @@ Client → Traefik / nginx (TLS) → FastAPI → Celery → Redis
 | **redis**         | Celery broker & result backend                    |
 | **SQLite**        | Users, API keys, preferences, request history     |
 | **traefik**       | Reverse proxy, Let's Encrypt SSL (optional)       |
+| **prometheus**    | Metrics collection & alert rules                  |
+| **grafana**       | Dashboards (Traefik + basic auth)                 |
+| **alertmanager**  | Telegram notifications on incidents               |
+| **celery_beat**   | Periodic Celery queue metrics                     |
 
 ## Quick start (local development — WSL / laptop)
 
@@ -80,7 +86,7 @@ curl -X POST https://ваш-домен/api/keys/generate \
 X-API-Key: ваш_ключ
 ```
 
-Исключения (без ключа): `/health`, `/docs`, `/openapi.json`, `/redoc`, `/`, `/api/keys/generate`.
+Исключения (без ключа): `/health`, `/metrics`, `/docs`, `/openapi.json`, `/redoc`, `/`, `/api/keys/generate`.
 
 ### Локально без ключей
 
@@ -214,6 +220,104 @@ python3 scripts/test_voice.py \
 
 Логи: `logs/log_voice.log`. История запросов: `history.request_type = 'voice'`.
 
+## Monitoring with Prometheus & Grafana
+
+Полная видимость API, агентов, очереди Celery, голосовых запросов и ресурсов хоста.
+
+### Быстрый старт
+
+1. Добавьте в `.env` (см. `.env.example`):
+
+```bash
+GRAFANA_ADMIN_PASSWORD=your_secure_password
+GRAFANA_DOMAIN=grafana.ваш-домен
+PROMETHEUS_RETENTION_DAYS=15
+TELEGRAM_BOT_TOKEN=123456:ABC...   # от @BotFather
+TELEGRAM_CHAT_ID=-123456789        # ID чата/группы
+ALERTS_ENABLED=true
+```
+
+2. Деплой:
+
+```bash
+./deploy.sh
+```
+
+3. Откройте:
+
+| URL | Описание |
+|-----|----------|
+| `https://ваш-домен/metrics` | Prometheus exposition (без auth) |
+| `https://grafana.ваш-домен/d/ReportAgent-Main/reportagent-main` | Главный дашборд |
+
+Grafana защищена **дважды**: Traefik basic auth + логин Grafana (`GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`).
+
+При первом деплое без `GRAFANA_ADMIN_PASSWORD` в `.env` пароль генерируется автоматически и выводится в лог `deploy.sh`.
+
+### Telegram-бот для алертов
+
+1. Создайте бота через [@BotFather](https://t.me/BotFather) → `/newbot` → скопируйте токен в `TELEGRAM_BOT_TOKEN`.
+2. Добавьте бота в группу или напишите ему `/start` в личку.
+3. Узнайте `chat_id`:
+   - личный чат: `https://api.telegram.org/bot<TOKEN>/getUpdates`
+   - группа: добавьте бота, отправьте сообщение, снова `getUpdates` — `chat.id` (отрицательное число).
+4. `./deploy.sh` рендерит `alertmanager/alertmanager.yml` из шаблона.
+
+Тест алертов:
+
+```bash
+python3 scripts/test_alerts.py --base-url https://ваш-домен --telegram
+```
+
+### Метрики вручную
+
+```bash
+curl -s https://ваш-домен/metrics | head -40
+```
+
+Ключевые метрики:
+
+| Метрика | Назначение |
+|---------|------------|
+| `report_requests_total` | RPS по эндпоинтам |
+| `agent_duration_seconds` | Время работы агентов |
+| `agent_errors_total` | Ошибки агентов |
+| `report_generation_duration_seconds` | Полный цикл отчёта |
+| `celery_queue_length` | Длина очереди Celery |
+| `voice_transcriptions_total` | Успех/фейл Whisper |
+| `active_users` | Активные пользователи (30 дней) |
+| `database_size_bytes` | Размер `users.db` |
+
+### Правила алертов
+
+Файл `prometheus/alerts.yml`:
+
+- **HighErrorRate** — 5xx > 5% за 5 мин
+- **CeleryQueueBacklog** — очередь > 20 задач
+- **AgentLongRunning** — p95 агента > 30 с
+- **HighVoiceFailureRate** — ошибки голоса > 20%
+- **ContainerDown** — FastAPI metrics недоступны
+- **HighCPUUsage** — CPU хоста > 85% (нужен `node_exporter`)
+- **DatabaseGrowth** — `users.db` > 1 GB
+
+### VPS с 1–2 GB RAM
+
+Отключите сбор метрик хоста:
+
+```bash
+OBSERVABILITY_HOST_METRICS=false
+```
+
+Останутся Prometheus + Grafana + метрики приложения.
+
+### Grafana setup script
+
+```bash
+./scripts/setup-grafana.sh
+```
+
+Проверяет provisioning и опционально создаёт API-ключ Grafana.
+
 ## Production (VPS)
 
 ### Режим Traefik (порты 80/443 на ReportAgent)
@@ -345,6 +449,12 @@ localhost (WSL)  ──push──►  GitHub  ──Actions/SSH──►  VPS
 | `OPENAI_API_KEY` | Для голосового ввода (Whisper + GPT) |
 | `OPENAI_BASE_URL` | ProxyAPI: `https://api.proxyapi.ru/openai/v1` |
 | `VOICE_ENABLED` | `true` — включить `/voice/*` |
+| `GRAFANA_DOMAIN` | Поддомен Grafana, напр. `grafana.example.com` |
+| `GRAFANA_ADMIN_PASSWORD` | Пароль admin Grafana + Traefik basic auth |
+| `TELEGRAM_BOT_TOKEN` | Токен бота для Alertmanager |
+| `TELEGRAM_CHAT_ID` | Chat ID для алертов |
+| `ALERTS_ENABLED` | `true` / `false` |
+| `OBSERVABILITY_HOST_METRICS` | `false` на слабом VPS (без node_exporter/cadvisor) |
 
 ### 2. Подготовка и запуск
 
@@ -393,6 +503,7 @@ curl -OJ -H "X-API-Key: $API_KEY" "https://ваш-домен/tasks/${TASK_ID}/pd
 | Method | Path | Описание |
 |--------|------|----------|
 | `GET` | `/health` | Healthcheck |
+| `GET` | `/metrics` | Prometheus metrics (no auth) |
 | `GET` | `/docs`, `/redoc`, `/openapi.json` | Swagger / OpenAPI |
 | `POST` | `/api/keys/generate` | Создать API-ключ |
 
@@ -542,8 +653,19 @@ ReportAgent/
 ├── scripts/
 │   ├── test_api_key.py
 │   ├── test_voice.py
+│   ├── test_alerts.py
+│   ├── setup-grafana.sh
+│   ├── render-alertmanager.sh
 │   └── github-deploy.sh
 ├── docs/
+├── prometheus/
+│   ├── prometheus.yml
+│   └── alerts.yml
+├── alertmanager/
+│   └── alertmanager.yml.template
+├── grafana/
+│   ├── provisioning/
+│   └── dashboards/
 ├── traefik/
 ├── storage/
 ├── logs/

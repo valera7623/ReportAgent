@@ -7,6 +7,13 @@ PULL_RETRY_DELAY="${PULL_RETRY_DELAY:-20}"
 
 TRAEFIK_IMAGE="${TRAEFIK_IMAGE:-traefik:v3.0}"
 REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}"
+OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}"
+
+PROMETHEUS_IMAGE="${PROMETHEUS_IMAGE:-prom/prometheus:latest}"
+GRAFANA_IMAGE="${GRAFANA_IMAGE:-grafana/grafana:latest}"
+ALERTMANAGER_IMAGE="${ALERTMANAGER_IMAGE:-prom/alertmanager:latest}"
+NODE_EXPORTER_IMAGE="${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}"
+CADVISOR_IMAGE="${CADVISOR_IMAGE:-gcr.io/cadvisor/cadvisor:latest}"
 
 pull_one() {
   local image="$1"
@@ -30,11 +37,29 @@ pull_one() {
   return 1
 }
 
+pull_observability() {
+  local failed=0
+  pull_one "$PROMETHEUS_IMAGE" || failed=1
+  pull_one "$GRAFANA_IMAGE" || failed=1
+  pull_one "$ALERTMANAGER_IMAGE" || failed=1
+  if [[ "$OBSERVABILITY_HOST_METRICS" == "true" ]]; then
+    pull_one "$NODE_EXPORTER_IMAGE" || failed=1
+    pull_one "$CADVISOR_IMAGE" || failed=1
+  fi
+  return "$failed"
+}
+
 main() {
+  if [[ "${1:-}" == "observability-only" ]]; then
+    pull_observability
+    return $?
+  fi
+
   local failed=0
 
   pull_one "$REDIS_IMAGE" || failed=1
   pull_one "$TRAEFIK_IMAGE" || failed=1
+  pull_observability || failed=1
 
   if [[ "$failed" -ne 0 ]]; then
     echo "" >&2

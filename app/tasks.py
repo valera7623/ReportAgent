@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import time
 from typing import Any
+
+import redis
 
 from app.agents.analyst import run_analyst
 from app.agents.context_loader import get_user_preferences
@@ -14,8 +18,13 @@ from app.models.schemas import AgentError
 from app.voice.orchestrator import process_voice
 from app.voice.storage import delete_voice_file
 from app.utils.logger import get_logger
+from app.utils.metrics import report_generation_duration_seconds
 
 logger = get_logger("tasks", "log_tasks.log")
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+CELERY_QUEUE_KEY = os.getenv("CELERY_QUEUE_NAME", "celery")
+METRICS_QUEUE_REDIS_KEY = "metrics:celery_queue_length"
 
 
 class VoiceClarificationError(Exception):
@@ -35,6 +44,21 @@ class VoiceClarificationError(Exception):
         self.transcript = transcript
 
 
+def _source_type_label(
+    *,
+    sheets_url: str | None,
+    file_path: str | None,
+    voice: bool = False,
+) -> str:
+    if voice:
+        return "voice"
+    if file_path:
+        return "file"
+    if sheets_url:
+        return "sheets"
+    return "unknown"
+
+
 def _run_report_pipeline(
     task_id: str,
     *,
@@ -43,18 +67,30 @@ def _run_report_pipeline(
     file_path: str | None,
     api_key: str | None,
     preferences: dict[str, Any] | None = None,
+    voice: bool = False,
 ) -> dict[str, Any]:
     prefs = preferences or get_user_preferences(api_key)
-
-    parsed = run_parser(
-        task_id=task_id,
-        email=email,
+    source_type = _source_type_label(
         sheets_url=sheets_url,
         file_path=file_path,
+        voice=voice,
     )
-    analyzed = run_analyst(parsed, preferences=prefs)
-    visualized = run_visualizer(analyzed, preferences=prefs)
-    return run_sender(visualized, preferences=prefs)
+    started = time.perf_counter()
+
+    try:
+        parsed = run_parser(
+            task_id=task_id,
+            email=email,
+            sheets_url=sheets_url,
+            file_path=file_path,
+        )
+        analyzed = run_analyst(parsed, preferences=prefs)
+        visualized = run_visualizer(analyzed, preferences=prefs)
+        return run_sender(visualized, preferences=prefs)
+    finally:
+        report_generation_duration_seconds.labels(source_type=source_type).observe(
+            time.perf_counter() - started
+        )
 
 
 @celery_app.task(bind=True, name="tasks.generate_report")
@@ -139,6 +175,7 @@ def generate_voice_report(
             file_path=file_path,
             api_key=api_key,
             preferences=prefs,
+            voice=True,
         )
         result["voice_transcript"] = transcript
         result["voice_intent"] = intent
@@ -167,3 +204,23 @@ def generate_voice_report(
 
     finally:
         delete_voice_file(audio_file_path)
+
+
+@celery_app.task(name="tasks.update_celery_queue_length")
+def update_celery_queue_length() -> dict[str, int]:
+    """Periodic task: publish Celery queue length to Redis for FastAPI /metrics."""
+    client = redis.from_url(REDIS_URL, decode_responses=True)
+    length = int(client.llen(CELERY_QUEUE_KEY))
+    client.set(METRICS_QUEUE_REDIS_KEY, length, ex=120)
+    logger.debug("Celery queue length: %d", length)
+    return {"queue_length": length}
+
+
+@celery_app.on_after_configure.connect
+def setup_periodic_tasks(sender, **kwargs) -> None:
+    """Register Celery Beat schedule for queue length monitoring."""
+    sender.add_periodic_task(
+        30.0,
+        update_celery_queue_length.s(),
+        name="update-celery-queue-length-every-30s",
+    )

@@ -275,6 +275,23 @@ def reset_user_preferences(user_id: str) -> dict[str, Any]:
     return get_user_preferences(user_id)
 
 
+def count_active_users(days: int = 30) -> int:
+    """Count users active within the last N days (by last_used_at or created_at)."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS cnt FROM users
+            WHERE is_active = 1
+              AND (
+                (last_used_at IS NOT NULL AND datetime(last_used_at) >= datetime('now', ?))
+                OR (last_used_at IS NULL AND datetime(created_at) >= datetime('now', ?))
+              )
+            """,
+            (f"-{days} days", f"-{days} days"),
+        ).fetchone()
+    return int(row["cnt"]) if row else 0
+
+
 def get_usage_count(user_id: str) -> int:
     with get_connection() as conn:
         row = conn.execute(

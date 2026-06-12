@@ -14,6 +14,7 @@ import pandas as pd
 
 from app.models.schemas import AgentError
 from app.utils.logger import get_logger
+from app.utils.metrics import track_agent_metrics
 
 logger = get_logger("agent_visualizer", "log_visualizer.log")
 
@@ -167,6 +168,7 @@ def _save_line_trend(
     return True
 
 
+@track_agent_metrics("visualizer")
 def run_visualizer(analyzed: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create up to 3 PNG charts and return paths."""
     try:

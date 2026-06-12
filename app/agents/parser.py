@@ -15,6 +15,7 @@ import pandas as pd
 
 from app.models.schemas import AgentError
 from app.utils.logger import get_logger
+from app.utils.metrics import track_agent_metrics
 
 logger = get_logger("agent_parser", "log_parser.log")
 
@@ -173,6 +174,7 @@ def save_upload(file_content: bytes, original_filename: str) -> Path:
     return dest
 
 
+@track_agent_metrics("parser")
 def run_parser(
     task_id: str,
     email: str | None = None,

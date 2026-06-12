@@ -20,6 +20,7 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 
 from app.models.schemas import AgentError
 from app.utils.logger import get_logger
+from app.utils.metrics import track_agent_metrics
 
 logger = get_logger("agent_sender", "log_sender.log")
 
@@ -226,6 +227,7 @@ def _send_email(to_email: str, pdf_path: Path, task_id: str) -> None:
         ) from exc
 
 
+@track_agent_metrics("sender")
 def run_sender(visualized: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Generate PDF and send it to the recipient."""
     try:

@@ -8,7 +8,7 @@ from typing import Annotated
 
 from celery.result import AsyncResult
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.agents.parser import save_upload, validate_request
 from app.celery_app import celery_app
@@ -16,6 +16,8 @@ from app.db.database import get_usage_count, resolve_email_for_user
 from app.db.init_db import run_migrations
 from app.middleware.auth import APIKeyAuthMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
+from app.utils.metrics import get_metrics_payload, start_background_gauge_updaters
+from app.utils.metrics_middleware import MetricsMiddleware
 from app.models.schemas import (
     AgentError,
     GenerateReportResponse,
@@ -39,6 +41,7 @@ async def lifespan(_app: FastAPI):
     except Exception as exc:
         logger.exception("Database migration failed on startup: %s", exc)
         raise
+    start_background_gauge_updaters()
     yield
 
 
@@ -49,10 +52,11 @@ app = FastAPI(
         "Receive it by email or download via API. "
         "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
     ),
-    version="1.3.0",
+    version="1.4.0",
     lifespan=lifespan,
 )
 
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(APIKeyAuthMiddleware)
 
@@ -83,6 +87,12 @@ async def root() -> dict[str, str]:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    """Prometheus metrics exposition (no authentication)."""
+    return Response(content=get_metrics_payload(), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 @app.get("/samples/sample_sales.csv")

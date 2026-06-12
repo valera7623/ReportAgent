@@ -26,7 +26,29 @@ else
   echo "WARNING: .env not found. Copy .env.example to .env and configure it."
 fi
 
+DOMAIN="${DOMAIN:-your-domain}"
+GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN}}"
+export GRAFANA_DOMAIN
+
+if [[ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]]; then
+  GRAFANA_ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -dc 'a-zA-Z0-9' | head -c 24)"
+  export GRAFANA_ADMIN_PASSWORD
+  echo "==> Generated GRAFANA_ADMIN_PASSWORD (add to .env): ${GRAFANA_ADMIN_PASSWORD}"
+fi
+
+GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}"
+if command -v htpasswd >/dev/null 2>&1; then
+  export GRAFANA_BASICAUTH_USERS
+  GRAFANA_BASICAUTH_USERS="$(htpasswd -nbB "${GRAFANA_ADMIN_USER}" "${GRAFANA_ADMIN_PASSWORD}" | sed -e 's/\$/$$/g')"
+elif docker info >/dev/null 2>&1; then
+  export GRAFANA_BASICAUTH_USERS
+  GRAFANA_BASICAUTH_USERS="$(docker run --rm httpd:2.4-alpine htpasswd -nbB "${GRAFANA_ADMIN_USER}" "${GRAFANA_ADMIN_PASSWORD}" | sed -e 's/\$/$$/g')"
+else
+  echo "WARNING: htpasswd not found; Grafana Traefik basic auth uses compose default."
+fi
+
 TRAEFIK_ENABLED="${TRAEFIK_ENABLED:-true}"
+OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}"
 COMPOSE_ARGS=(-f "$COMPOSE_FILE")
 COMPOSE_UP_ARGS=()
 
@@ -46,29 +68,49 @@ else
   fi
 fi
 
-mkdir -p app/data storage/pdfs storage/uploads logs traefik/acme
+if [[ "$OBSERVABILITY_HOST_METRICS" == "true" ]]; then
+  echo "==> Observability: enabling node_exporter + cadvisor (set OBSERVABILITY_HOST_METRICS=false on low-RAM VPS)"
+  COMPOSE_UP_ARGS+=(--profile observability-host)
+fi
+
+mkdir -p \
+  app/data storage/pdfs storage/uploads logs traefik/acme \
+  prometheus alertmanager \
+  grafana/provisioning/datasources grafana/provisioning/dashboards grafana/dashboards
+
+chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh \
+  scripts/setup-grafana.sh scripts/render-alertmanager.sh scripts/test_alerts.py 2>/dev/null || true
+
+echo "==> Rendering Alertmanager config"
+./scripts/render-alertmanager.sh
 
 if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "WARNING: ffmpeg not found on host (optional; required inside Docker image for voice/pydub)."
 fi
 touch traefik/acme/acme.json
 chmod 600 traefik/acme/acme.json 2>/dev/null || true
-chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh 2>/dev/null || true
+
+echo "==> Preparing Prometheus data volume permissions"
+docker volume create reportagent_prometheus_data 2>/dev/null || docker volume create prometheus_data 2>/dev/null || true
+PROM_VOL_DIR="$(docker volume inspect reportagent_prometheus_data -f '{{.Mountpoint}}' 2>/dev/null || docker volume inspect prometheus_data -f '{{.Mountpoint}}' 2>/dev/null || echo "")"
+if [[ -n "$PROM_VOL_DIR" && -d "$PROM_VOL_DIR" ]]; then
+  sudo chmod 777 "$PROM_VOL_DIR" 2>/dev/null || chmod 777 "$PROM_VOL_DIR" 2>/dev/null || true
+fi
 
 echo "==> Building app image"
 docker compose "${COMPOSE_ARGS[@]}" build
 
 if [[ "${SKIP_PULL:-0}" != "1" ]]; then
   if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
-    echo "==> Pulling external images (Traefik, Redis)"
+    echo "==> Pulling external images (Traefik, Redis, observability)"
     if ! ./scripts/pull-images.sh; then
       echo ""
-      echo "Production deploy aborted: could not pull Traefik/Redis."
+      echo "Production deploy aborted: could not pull external images."
       echo "For local testing use: ./deploy-dev.sh"
       exit 1
     fi
   else
-    echo "==> Pulling Redis only (Traefik skipped)"
+    echo "==> Pulling Redis + observability images (Traefik skipped)"
     PULL_RETRIES="${PULL_RETRIES:-5}" REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}" \
       bash -c '
         img="${REDIS_IMAGE:-redis:7-alpine}"
@@ -81,13 +123,14 @@ if [[ "${SKIP_PULL:-0}" != "1" ]]; then
         echo "Redis pull failed. Set REDIS_IMAGE mirror in .env or SKIP_PULL=1"
         exit 1
       }
+    OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}" ./scripts/pull-images.sh observability-only || true
   fi
 else
   echo "==> SKIP_PULL=1 — skipping docker pull"
 fi
 
 echo "==> Stopping existing stack"
-docker compose "${COMPOSE_ARGS[@]}" --profile traefik down --remove-orphans 2>/dev/null || \
+docker compose "${COMPOSE_ARGS[@]}" --profile traefik --profile observability-host down --remove-orphans 2>/dev/null || \
   docker compose "${COMPOSE_ARGS[@]}" down --remove-orphans
 
 echo "==> Starting stack"
@@ -102,7 +145,11 @@ docker compose "${COMPOSE_ARGS[@]}" ps
 
 echo ""
 if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
-  echo "Deploy complete. API docs: https://${DOMAIN:-your-domain}/docs"
+  echo "Deploy complete."
+  echo "  API docs:    https://${DOMAIN}/docs"
+  echo "  Metrics:     https://${DOMAIN}/metrics"
+  echo "  Grafana:     https://${GRAFANA_DOMAIN}/d/ReportAgent-Main/reportagent-main"
+  echo "  Grafana login: ${GRAFANA_ADMIN_USER} / (see GRAFANA_ADMIN_PASSWORD in .env or log above)"
 elif [[ -n "${EXTERNAL_NGINX_NETWORK:-}" ]]; then
   echo "Deploy complete. Add nginx proxy → http://reportagent_fastapi:8000"
   echo "See docs/nginx-docker-existing.example.conf"

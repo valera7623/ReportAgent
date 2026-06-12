@@ -9,6 +9,7 @@ from typing import Any
 
 from app.voice.config import LLM_MODEL
 from app.utils.logger import get_logger
+from app.utils.metrics import track_agent_metrics
 
 logger = get_logger("voice_intent_parser", "log_voice.log")
 
@@ -59,6 +60,7 @@ def _normalize_email_value(email: str | None) -> str | None:
     return match.group(0) if match else normalized if "@" in normalized else email
 
 
+@track_agent_metrics("intent_parser")
 def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Parse user intent from transcript using GPT JSON mode."""
     prefs = user_preferences or {}

@@ -1,0 +1,93 @@
+groups:
+  - name: reportagent
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(report_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(report_requests_total[5m]))
+          ) > 0.05
+          and sum(rate(report_requests_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate (>5%)"
+          description: "More than 5% of API requests returned 5xx over the last 5 minutes."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
+
+      - alert: CeleryQueueBacklog
+        expr: celery_queue_length > 20
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery queue backlog"
+          description: "Celery queue length is {{ $value }} tasks (threshold: 20)."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
+
+      - alert: AgentLongRunning
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (agent_name, le) (rate(agent_duration_seconds_bucket[5m]))
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent {{ $labels.agent_name }} p95 > 30s"
+          description: "Agent {{ $labels.agent_name }} 95th percentile duration is {{ $value | humanizeDuration }}."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
+
+      - alert: HighVoiceFailureRate
+        expr: |
+          (
+            sum(rate(voice_transcriptions_total{status="fail"}[10m]))
+            /
+            sum(rate(voice_transcriptions_total[10m]))
+          ) > 0.20
+          and sum(rate(voice_transcriptions_total[10m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High voice transcription failure rate"
+          description: "More than 20% of voice transcriptions failed in the last 10 minutes."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
+
+      - alert: ContainerDown
+        expr: up{job="fastapi"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FastAPI metrics target down"
+          description: "Prometheus cannot scrape fastapi:8000/metrics for 1 minute."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
+
+      - alert: HighCPUUsage
+        expr: |
+          100 - (
+            avg by (instance) (
+              rate(node_cpu_seconds_total{mode="idle"}[5m])
+            ) * 100
+          ) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on host"
+          description: "Host CPU usage is above 85% for 5 minutes (current: {{ $value | printf \"%.1f\" }}%)."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
+
+      - alert: DatabaseGrowth
+        expr: database_size_bytes > 1073741824
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SQLite database exceeds 1 GB"
+          description: "users.db size is {{ $value | humanize1024 }}B (threshold: 1 GB)."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"

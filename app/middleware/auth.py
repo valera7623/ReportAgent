@@ -18,6 +18,7 @@ EXEMPT_PATHS = frozenset(
     {
         "/",
         "/health",
+        "/metrics",
         "/docs",
         "/openapi.json",
         "/redoc",

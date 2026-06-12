@@ -9,6 +9,7 @@ from typing import Any
 
 from app.voice.config import WHISPER_MODEL
 from app.utils.logger import get_logger
+from app.utils.metrics import record_voice_transcription
 
 logger = get_logger("voice_transcriber", "log_voice.log")
 
@@ -62,11 +63,13 @@ def transcribe_audio(file_path: str) -> dict[str, Any]:
     if not path.is_file():
         msg = f"Audio file not found: {file_path}"
         logger.error(msg)
+        record_voice_transcription(success=False)
         return {"text": "", "duration_seconds": None, "confidence": None, "error": msg}
 
     if path.stat().st_size == 0:
         msg = "Audio file is empty (0 bytes)"
         logger.error(msg)
+        record_voice_transcription(success=False)
         return {"text": "", "duration_seconds": 0, "confidence": None, "error": msg}
 
     duration = _audio_duration_seconds(path)
@@ -74,6 +77,7 @@ def transcribe_audio(file_path: str) -> dict[str, Any]:
     if not api_key:
         msg = "OPENAI_API_KEY not configured in container environment"
         logger.error(msg)
+        record_voice_transcription(success=False)
         return {"text": "", "duration_seconds": duration, "confidence": None, "error": msg}
 
     whisper_path, temp_path = _normalize_audio_for_whisper(path)
@@ -108,6 +112,7 @@ def transcribe_audio(file_path: str) -> dict[str, Any]:
         if not text:
             msg = "Whisper returned empty transcript (silent or unrecognized audio)"
             logger.warning("%s for %s", msg, path.name)
+            record_voice_transcription(success=False)
             return {
                 "text": "",
                 "duration_seconds": duration,
@@ -115,6 +120,7 @@ def transcribe_audio(file_path: str) -> dict[str, Any]:
                 "error": msg,
             }
 
+        record_voice_transcription(success=True)
         logger.info(
             "Transcribed %s: duration=%.1fs chars=%d confidence=%s preview=%r",
             path.name,
@@ -133,6 +139,7 @@ def transcribe_audio(file_path: str) -> dict[str, Any]:
     except Exception as exc:
         msg = f"Whisper API error: {exc}"
         logger.exception("Whisper API failed for %s", path.name)
+        record_voice_transcription(success=False)
         return {"text": "", "duration_seconds": duration, "confidence": None, "error": msg}
 
     finally:

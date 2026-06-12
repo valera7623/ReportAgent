@@ -8,6 +8,7 @@ import pandas as pd
 
 from app.models.schemas import AgentError
 from app.utils.logger import get_logger
+from app.utils.metrics import track_agent_metrics
 
 logger = get_logger("agent_analyst", "log_analyst.log")
 
@@ -22,6 +23,7 @@ def _top_values(series: pd.Series, n: int = 3) -> list[dict[str, Any]]:
     return items
 
 
+@track_agent_metrics("analyst")
 def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Compute sums, averages, top values, and percentages."""
     try:
