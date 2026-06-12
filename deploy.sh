@@ -50,11 +50,11 @@ fi
 TRAEFIK_ENABLED="${TRAEFIK_ENABLED:-true}"
 OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}"
 COMPOSE_ARGS=(-f "$COMPOSE_FILE")
-COMPOSE_UP_ARGS=()
+COMPOSE_PROFILE_ARGS=()
 
 if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
   echo "==> Mode: Traefik (ports 80/443)"
-  COMPOSE_UP_ARGS+=(--profile traefik)
+  COMPOSE_PROFILE_ARGS+=(--profile traefik)
   if [[ "${SKIP_PORT_CHECK:-0}" != "1" ]]; then
     ./scripts/preflight-prod.sh
   fi
@@ -70,7 +70,7 @@ fi
 
 if [[ "$OBSERVABILITY_HOST_METRICS" == "true" ]]; then
   echo "==> Observability: enabling node_exporter + cadvisor (set OBSERVABILITY_HOST_METRICS=false on low-RAM VPS)"
-  COMPOSE_UP_ARGS+=(--profile observability-host)
+  COMPOSE_PROFILE_ARGS+=(--profile observability-host)
 fi
 
 mkdir -p \
@@ -130,18 +130,18 @@ else
 fi
 
 echo "==> Stopping existing stack"
-docker compose "${COMPOSE_ARGS[@]}" --profile traefik --profile observability-host down --remove-orphans 2>/dev/null || \
+docker compose "${COMPOSE_ARGS[@]}" "${COMPOSE_PROFILE_ARGS[@]}" down --remove-orphans 2>/dev/null || \
   docker compose "${COMPOSE_ARGS[@]}" down --remove-orphans
 
 echo "==> Starting stack"
-docker compose "${COMPOSE_ARGS[@]}" up -d --pull never "${COMPOSE_UP_ARGS[@]}"
+docker compose "${COMPOSE_ARGS[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --pull never
 
 echo "==> Pruning dangling images"
 docker system prune -f
 
 echo ""
 echo "==> Container status"
-docker compose "${COMPOSE_ARGS[@]}" ps
+docker compose "${COMPOSE_ARGS[@]}" "${COMPOSE_PROFILE_ARGS[@]}" ps
 
 echo ""
 if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
