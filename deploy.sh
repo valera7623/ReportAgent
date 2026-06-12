@@ -88,7 +88,7 @@ mkdir -p \
 
 chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh \
   scripts/setup-grafana.sh scripts/render-alertmanager.sh scripts/test_alerts.py \
-  scripts/diagnose_observability.sh 2>/dev/null || true
+  scripts/diagnose_observability.sh scripts/check-nginx-grafana.sh 2>/dev/null || true
 
 echo "==> Rendering Alertmanager config"
 ./scripts/render-alertmanager.sh
