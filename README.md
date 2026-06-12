@@ -110,6 +110,105 @@ ssh-copy-id -i ~/.ssh/reportagent_deploy.pub ubuntu@YOUR_VPS_IP
 
 Ручной запуск: Actions → **Deploy to VPS** → Run workflow.
 
+## Синхронизация: localhost ↔ GitHub ↔ VPS
+
+**Источник правды для кода — GitHub (`master`).**  
+Файлы **не синхронизируются через git**: `.env`, `storage/`, `logs/`, PDF на диске.
+
+```
+localhost (WSL)  ──push──►  GitHub  ──Actions/SSH──►  VPS
+     ▲                        │
+     └──────── pull ──────────┘
+```
+
+### Схема работы
+
+| Где правите | Действия |
+|-------------|----------|
+| **localhost (Cursor/WSL)** | `git add` → `git commit` → `git push origin master` → автодеплой на VPS |
+| **подтянуть с GitHub на ПК** | `git pull origin master` |
+| **VPS вручную** | `cd ~/ReportAgent && ./scripts/sync-pull.sh --deploy` |
+
+### Localhost → GitHub → VPS (основной поток)
+
+```bash
+# на WSL / локально
+cd ~/ReportAgent
+git status
+git add .
+git commit -m "описание изменений"
+git push origin master
+# GitHub Actions сам задеплоит на VPS (см. Actions)
+```
+
+### Localhost ← GitHub
+
+```bash
+cd ~/ReportAgent
+git pull origin master
+```
+
+### VPS ← GitHub (без Actions)
+
+```bash
+ssh smdg@74.208.252.225
+cd ~/ReportAgent
+./scripts/sync-pull.sh --deploy
+```
+
+Только pull без пересборки:
+
+```bash
+./scripts/sync-pull.sh
+```
+
+### Проверить, что всё на одном коммите
+
+```bash
+# localhost
+git log -1 --oneline
+
+# VPS
+ssh smdg@74.208.252.225 'cd ~/ReportAgent && git log -1 --oneline'
+
+# GitHub — в браузере или:
+git ls-remote origin master
+```
+
+Коммиты должны совпадать (например `503e754 ...`).
+
+### Что не коммитить / не трогать при sync
+
+| Файл / папка | Где живёт | Примечание |
+|--------------|-----------|------------|
+| `.env` | только VPS (и локально у вас) | секреты, SMTP, DOMAIN |
+| `storage/`, `logs/` | VPS | данные runtime |
+| `~/SMDG/nginx-https.conf` | VPS | **отдельный проект smdg**, не ReportAgent repo |
+| `sample_sales.csv`, `report_*.pdf` в корне VPS | мусор от тестов | можно удалить |
+
+### Если на VPS есть локальные правки git
+
+```bash
+cd ~/ReportAgent
+git status
+git diff
+
+# отменить случайные правки в коде (сохранить .env!)
+git restore .
+
+# подтянуть GitHub
+git pull origin master
+./deploy.sh
+```
+
+### Сейчас у вас
+
+Код **уже синхронизирован** на коммите `503e754`. На VPS только:
+- `chmod` на `scripts/preflight-prod.sh` (безопасно: `git restore scripts/preflight-prod.sh`)
+- лишние файлы: `.env.save`, `sample_sales.csv`, `report_*.pdf` — не в git
+
+Конфиг nginx для `reportagent.fileguardian.info` — в **`~/SMDG/nginx-https.conf`** (бэкап там же). В ReportAgent repo его нет; при переезде VPS сохраните этот файл отдельно.
+
 ## Деплой на VPS (вручную)
 
 Требования: **Ubuntu 22.04+**, Docker и Docker Compose plugin установлены, DNS A-запись домена указывает на IP сервера.
