@@ -277,6 +277,7 @@ networks:
   traefik_network:
     external: true
   internal:
+    name: reportagent_internal
     driver: bridge
 
 volumes:

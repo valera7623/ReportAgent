@@ -30,6 +30,14 @@ DOMAIN="${DOMAIN:-your-domain}"
 GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN}}"
 export GRAFANA_DOMAIN
 
+if [[ -n "${EXTERNAL_NGINX_NETWORK:-}" && "$DOMAIN" == "${DOMAIN%%.*}" ]]; then
+  echo "WARNING: DOMAIN=$DOMAIN has no subdomain; use reportagent.your-domain for ReportAgent API."
+fi
+if [[ "$DOMAIN" == "fileguardian.info" ]]; then
+  echo "WARNING: DOMAIN=fileguardian.info is the SMDG root site."
+  echo "         Set DOMAIN=reportagent.fileguardian.info in .env for ReportAgent API and /metrics."
+fi
+
 if [[ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]]; then
   GRAFANA_ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -dc 'a-zA-Z0-9' | head -c 24)"
   export GRAFANA_ADMIN_PASSWORD
