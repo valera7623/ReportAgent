@@ -56,8 +56,9 @@ def _build_clarification_question(intent: dict[str, Any], transcription_error: s
         )
     if "source_value" in missing or "source_type" in missing:
         return (
-            "Не указан источник данных. Скажите ссылку на Google Sheets "
-            "или уточните, какие данные анализировать."
+            "Не указан источник данных. Укажите ссылку на Google Sheets "
+            "или загрузите CSV через POST /generate_report. "
+            "Можно ответить текстом через POST /voice/clarify."
         )
     if "metrics" in missing:
         return "Какие метрики или колонки нужно проанализировать? Например: sales, profit."

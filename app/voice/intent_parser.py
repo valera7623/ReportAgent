@@ -14,6 +14,13 @@ logger = get_logger("voice_intent_parser", "log_voice.log")
 
 EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
+_SPOKEN_AT_PATTERNS = (
+    (re.compile(r"(\b[\w.-]+)sobaka(\.[\w.-]+\b)", re.I), r"\1@\2"),
+    (re.compile(r"(\b[\w.-]+)собака(\.[\w.-]+\b)", re.I), r"\1@\2"),
+    (re.compile(r"(\b[\w.-]+)\s+at\s+(\.[\w.-]+\b)", re.I), r"\1@\2"),
+    (re.compile(r"(\b[\w.-]+)\s+собака\s+(\.[\w.-]+\b)", re.I), r"\1@\2"),
+)
+
 SYSTEM_PROMPT = """Ты — intent parser для генерации отчётов. Из текста пользователя извлеки:
 - source_type: "file" или "sheets_url" (если упомянут Google Sheets или ссылка)
 - source_value: URL если sheets_url, или null (файл будет загружен отдельно)
@@ -23,24 +30,41 @@ SYSTEM_PROMPT = """Ты — intent parser для генерации отчёто
 - target_email: email получателя (если есть)
 - missing_info: список того, чего не хватает (например ["source_type", "metrics"])
 
+Если email произнесён как "sobaka" или "собака" вместо @ — верни нормальный email с @.
+"график по месяцам" / "динамика" → chart_type "line"; "круговая" → "pie"; иначе null.
+
 Верни JSON. Если информации мало — заполни missing_info и верни частичный результат.
 Всегда включай все перечисленные ключи в JSON."""
 
 
+def normalize_spoken_email(text: str) -> str:
+    """Fix common speech-to-text email artifacts before parsing."""
+    result = text
+    for pattern, repl in _SPOKEN_AT_PATTERNS:
+        result = pattern.sub(repl, result)
+    return result
+
+
 def _extract_email_regex(text: str) -> str | None:
-    match = EMAIL_RE.search(text)
+    normalized = normalize_spoken_email(text)
+    match = EMAIL_RE.search(normalized)
     return match.group(0) if match else None
 
 
-def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> dict[str, Any]:
-    """
-    Parse user intent from transcript using GPT JSON mode.
+def _normalize_email_value(email: str | None) -> str | None:
+    if not email:
+        return None
+    normalized = normalize_spoken_email(str(email))
+    match = EMAIL_RE.search(normalized)
+    return match.group(0) if match else normalized if "@" in normalized else email
 
-    Merges defaults from user_preferences (preferred_chart_type, default_email).
-    """
+
+def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Parse user intent from transcript using GPT JSON mode."""
     prefs = user_preferences or {}
     default_chart = prefs.get("preferred_chart_type", "bar")
     default_email = prefs.get("default_email")
+    text = normalize_spoken_email(text)
 
     if not text.strip():
         return {
@@ -90,14 +114,30 @@ def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> d
         return _fallback_intent(text, default_chart, default_email)
 
 
+def _infer_chart_type(transcript: str, parsed_chart: str | None, default: str) -> str:
+    if parsed_chart in ("bar", "line", "pie"):
+        return parsed_chart
+    lower = transcript.lower()
+    if any(w in lower for w in ("кругов", "pie", "доля")):
+        return "pie"
+    if any(w in lower for w in ("по месяц", "динамик", "тренд", "line", "линейн")):
+        return "line"
+    return default
+
+
 def _normalize_intent(
     parsed: dict[str, Any],
     transcript: str,
     default_chart: str,
     default_email: str | None,
 ) -> dict[str, Any]:
-    email = parsed.get("target_email") or _extract_email_regex(transcript) or default_email
-    chart = parsed.get("chart_type") or default_chart
+    email = _normalize_email_value(parsed.get("target_email"))
+    if not email:
+        email = _extract_email_regex(transcript) or default_email
+    else:
+        email = _normalize_email_value(email)
+
+    chart = _infer_chart_type(transcript, parsed.get("chart_type"), default_chart)
 
     source_type = parsed.get("source_type")
     source_value = parsed.get("source_value")
@@ -145,7 +185,7 @@ def _fallback_intent(text: str, default_chart: str, default_email: str | None) -
     return {
         "source_type": source_type,
         "source_value": source_value,
-        "chart_type": default_chart,
+        "chart_type": _infer_chart_type(text, None, default_chart),
         "metrics": [],
         "group_by": None,
         "target_email": _extract_email_regex(text) or default_email,
