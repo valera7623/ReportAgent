@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.agents.analyst import run_analyst
+from app.agents.context_loader import get_user_preferences
 from app.agents.parser import run_parser
 from app.agents.sender import run_sender
 from app.agents.visualizer import run_visualizer
@@ -21,21 +22,24 @@ def generate_report(
     email: str | None = None,
     sheets_url: str | None = None,
     file_path: str | None = None,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
-    """Run parser → analyst → visualizer → sender pipeline."""
+    """Run context_loader → parser → analyst → visualizer → sender pipeline."""
     task_id = self.request.id or "unknown"
     logger.info("Task %s started (email=%s)", task_id, email or "none")
 
     try:
+        preferences = get_user_preferences(api_key)
+
         parsed = run_parser(
             task_id=task_id,
             email=email,
             sheets_url=sheets_url,
             file_path=file_path,
         )
-        analyzed = run_analyst(parsed)
-        visualized = run_visualizer(analyzed)
-        result = run_sender(visualized)
+        analyzed = run_analyst(parsed, preferences=preferences)
+        visualized = run_visualizer(analyzed, preferences=preferences)
+        result = run_sender(visualized, preferences=preferences)
         logger.info("Task %s completed successfully", task_id)
         return result
 

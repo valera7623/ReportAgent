@@ -45,6 +45,8 @@ class GenerateReportResponse(BaseModel):
     status: str = "queued"
     message: str
     download_url: str
+    user_id: str | None = None
+    usage_count: int = 0
 
 
 class TaskStatusResponse(BaseModel):

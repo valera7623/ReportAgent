@@ -22,11 +22,13 @@ def _top_values(series: pd.Series, n: int = 3) -> list[dict[str, Any]]:
     return items
 
 
-def run_analyst(parsed: dict[str, Any]) -> dict[str, Any]:
-    """Compute sums, averages, top-3 values, and percentages."""
+def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Compute sums, averages, top values, and percentages."""
     try:
+        prefs = preferences or {}
+        preferred_chart = prefs.get("preferred_chart_type", "bar")
         task_id = parsed.get("task_id", "unknown")
-        logger.info("Analyst started for task %s", task_id)
+        logger.info("Analyst started for task %s (chart=%s)", task_id, preferred_chart)
 
         df = pd.DataFrame(parsed["data"])
         if df.empty:
@@ -48,12 +50,19 @@ def run_analyst(parsed: dict[str, Any]) -> dict[str, Any]:
                 "count": int(series.count()),
             }
 
+        cat_top_n = 10 if preferred_chart == "pie" else 3
         categorical_summary: dict[str, list[dict[str, Any]]] = {}
+        pie_candidates: list[str] = []
+
         for col in text_cols:
             series = df[col].dropna()
             if series.empty:
                 continue
-            categorical_summary[col] = _top_values(series, n=3)
+            unique_count = series.astype(str).nunique()
+            items = _top_values(series, n=cat_top_n)
+            categorical_summary[col] = items
+            if preferred_chart == "pie" and 2 <= unique_count <= 12:
+                pie_candidates.append(col)
 
         if not numeric_summary and not categorical_summary:
             raise AgentError(
@@ -73,12 +82,18 @@ def run_analyst(parsed: dict[str, Any]) -> dict[str, Any]:
             "numeric_summary": numeric_summary,
             "categorical_summary": categorical_summary,
             "data": parsed["data"],
+            "preferences": prefs,
+            "chart_hints": {
+                "preferred_chart_type": preferred_chart,
+                "pie_columns": pie_candidates[:1] if pie_candidates else [],
+            },
         }
 
         logger.info(
-            "Analyst finished: %d numeric cols, %d categorical cols",
+            "Analyst finished: %d numeric cols, %d categorical cols, pie_cols=%s",
             len(numeric_summary),
             len(categorical_summary),
+            pie_candidates,
         )
         return result
 

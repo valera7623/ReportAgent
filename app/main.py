@@ -2,35 +2,56 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
 from celery.result import AsyncResult
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.agents.parser import save_upload, validate_request
 from app.celery_app import celery_app
+from app.db.database import get_usage_count, resolve_email_for_user
+from app.db.init_db import run_migrations
+from app.middleware.auth import APIKeyAuthMiddleware
+from app.middleware.request_logging import RequestLoggingMiddleware
 from app.models.schemas import (
     AgentError,
     GenerateReportResponse,
     TaskState,
     TaskStatusResponse,
 )
+from app.routers import keys, preferences
 from app.tasks import generate_report
 from app.utils.logger import get_logger
 from app.utils.paths import resolve_pdf_path
 
 logger = get_logger("main", "log_api.log")
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    run_migrations()
+    yield
+
+
 app = FastAPI(
     title="ReportAgent",
     description=(
         "Upload CSV/Excel or provide a public Google Sheets URL to generate a PDF report. "
-        "Receive it by email or download via API."
+        "Receive it by email or download via API. "
+        "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
     ),
-    version="1.1.0",
+    version="1.2.0",
+    lifespan=lifespan,
 )
+
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(APIKeyAuthMiddleware)
+
+app.include_router(keys.router)
+app.include_router(preferences.router)
 
 
 def _build_queue_message(email: str | None, task_id: str) -> str:
@@ -47,6 +68,7 @@ async def root() -> dict[str, str]:
         "docs": "/docs",
         "health": "/health",
         "sample_csv": "/samples/sample_sales.csv",
+        "api_keys": "/api/keys/generate",
     }
 
 
@@ -70,6 +92,7 @@ async def get_sample_csv() -> FileResponse:
 
 @app.post("/generate_report", response_model=GenerateReportResponse, status_code=202)
 async def generate_report_endpoint(
+    request: Request,
     sheets_url: Annotated[str | None, Form(description="Public Google Sheets URL")] = None,
     email: Annotated[str | None, Form(description="Optional recipient email")] = None,
     file: UploadFile | None = File(default=None, description="CSV or Excel file"),
@@ -78,11 +101,18 @@ async def generate_report_endpoint(
     Queue report generation.
 
     Provide **either** a file upload **or** a public Google Sheets URL.
-    Email is optional — without it, download the PDF via `GET /tasks/{task_id}/pdf`.
+    Email is optional — uses saved default from preferences when omitted.
+    Requires **X-API-Key** header (unless DISABLE_AUTH=true).
     """
     has_file = file is not None and file.filename not in (None, "")
     sheets_url_clean = sheets_url.strip() if sheets_url else None
     email_clean = email.strip() if email else None
+
+    user_id = getattr(request.state, "user_id", None)
+    api_key = getattr(request.state, "api_key", None)
+
+    if user_id:
+        email_clean = resolve_email_for_user(user_id, email_clean)
 
     try:
         validate_request(email=email_clean, sheets_url=sheets_url_clean, has_file=has_file)
@@ -106,13 +136,20 @@ async def generate_report_endpoint(
         email=email_clean,
         sheets_url=sheets_url_clean,
         file_path=file_path,
+        api_key=api_key,
     )
 
-    logger.info("Queued task %s (email=%s)", task.id, email_clean or "none")
+    usage_count = 0
+    if user_id:
+        usage_count = get_usage_count(user_id) + 1
+
+    logger.info("Queued task %s (email=%s, user=%s)", task.id, email_clean or "none", user_id or "anon")
     return GenerateReportResponse(
         task_id=task.id,
         message=_build_queue_message(email_clean, task.id),
         download_url=f"/tasks/{task.id}/pdf",
+        user_id=user_id,
+        usage_count=usage_count,
     )
 
 

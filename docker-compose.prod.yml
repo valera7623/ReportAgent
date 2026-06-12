@@ -14,10 +14,13 @@ services:
       - LOG_DIR=/app/logs
       - PDF_DIR=/app/storage/pdfs
       - UPLOAD_DIR=/app/storage/uploads
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/app/data/users.db}
+      - DEFAULT_PREFERRED_CHART_TYPE=${DEFAULT_PREFERRED_CHART_TYPE:-bar}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/uploads:/app/storage/uploads
       - ./logs:/app/logs
+      - ./app/data:/app/app/data
     networks:
       - traefik_network
       - internal
@@ -60,10 +63,13 @@ services:
       - LOG_DIR=/app/logs
       - PDF_DIR=/app/storage/pdfs
       - UPLOAD_DIR=/app/storage/uploads
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/app/data/users.db}
+      - DEFAULT_PREFERRED_CHART_TYPE=${DEFAULT_PREFERRED_CHART_TYPE:-bar}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/uploads:/app/storage/uploads
       - ./logs:/app/logs
+      - ./app/data:/app/app/data
       - ./scripts/healthcheck_celery.sh:/usr/local/bin/healthcheck_celery.sh:ro
     networks:
       - internal

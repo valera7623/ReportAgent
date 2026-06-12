@@ -10,6 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any
+from urllib.request import urlopen
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -31,7 +32,31 @@ SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "noreply@reportagent.local")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
 
 
-def _build_pdf(visualized: dict[str, Any], pdf_path: Path) -> None:
+def _resolve_email(visualized: dict[str, Any], preferences: dict[str, Any] | None) -> str | None:
+    email = visualized.get("email")
+    if email:
+        return email
+    prefs = preferences or visualized.get("preferences") or {}
+    return prefs.get("default_email")
+
+
+def _try_load_logo(logo_url: str | None, task_id: str) -> Path | None:
+    if not logo_url:
+        return None
+    try:
+        pdf_dir = PDF_BASE_DIR / task_id
+        pdf_dir.mkdir(parents=True, exist_ok=True)
+        suffix = ".png" if ".png" in logo_url.lower() else ".jpg"
+        logo_path = pdf_dir / f"company_logo{suffix}"
+        with urlopen(logo_url, timeout=15) as response:
+            logo_path.write_bytes(response.read())
+        return logo_path
+    except Exception as exc:
+        logger.warning("Could not download company logo from %s: %s", logo_url, exc)
+        return None
+
+
+def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | None = None) -> None:
     task_id = visualized["task_id"]
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -62,6 +87,10 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path) -> None:
 
     story: list[Any] = []
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    if logo_path and logo_path.exists():
+        story.append(Image(str(logo_path), width=4 * cm, height=2 * cm))
+        story.append(Spacer(1, 0.3 * cm))
 
     story.append(Paragraph("ReportAgent — Data Report", title_style))
     story.append(Paragraph(f"Generated: {now}", body_style))
@@ -197,18 +226,24 @@ def _send_email(to_email: str, pdf_path: Path, task_id: str) -> None:
         ) from exc
 
 
-def run_sender(visualized: dict[str, Any]) -> dict[str, Any]:
+def run_sender(visualized: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Generate PDF and send it to the recipient."""
     try:
+        prefs = preferences or visualized.get("preferences") or {}
         task_id = visualized["task_id"]
-        email = visualized["email"]
+        email = _resolve_email(visualized, prefs)
+        visualized = {**visualized, "email": email}
+
         logger.info("Sender started for task %s", task_id)
 
         pdf_dir = PDF_BASE_DIR / task_id
         pdf_dir.mkdir(parents=True, exist_ok=True)
         pdf_path = pdf_dir / f"report_{task_id}.pdf"
 
-        _build_pdf(visualized, pdf_path)
+        logo_url = visualized.get("company_logo_url") or prefs.get("company_logo_url")
+        logo_path = _try_load_logo(logo_url, task_id)
+
+        _build_pdf(visualized, pdf_path, logo_path=logo_path)
         logger.info("PDF saved to %s", pdf_path)
 
         if email:
