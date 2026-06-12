@@ -17,7 +17,7 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-mkdir -p storage/pdfs storage/uploads logs
+mkdir -p app/data storage/pdfs storage/uploads logs
 chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh 2>/dev/null || true
 
 echo "==> Building images (app + redis, no registry pull)"

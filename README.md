@@ -2,29 +2,47 @@
 
 Micro-SaaS for generating PDF reports with charts from CSV/Excel uploads or public Google Sheets. Reports are delivered by email via SMTP.
 
+**v1.2** — API-key authentication, per-user preferences (chart type, theme, default email), and SQLite-backed session memory between requests.
+
 ## Architecture
 
 ```
-Client → Traefik (TLS) → FastAPI → Celery → Redis
-                              ↓
-                    parser → analyst → visualizer → sender (PDF + SMTP)
+Client → Traefik / nginx (TLS) → FastAPI → Celery → Redis
+                                      ↓
+              context_loader → parser → analyst → visualizer → sender (PDF + SMTP)
+                                      ↓
+                                 SQLite (users.db)
 ```
 
-| Service        | Role                                      |
-|----------------|-------------------------------------------|
-| **fastapi**    | HTTP API (`POST /generate_report`)        |
-| **celery_worker** | Background report pipeline             |
-| **redis**      | Celery broker & result backend            |
-| **traefik**    | Reverse proxy, Let's Encrypt SSL          |
+| Service           | Role                                              |
+|-------------------|---------------------------------------------------|
+| **fastapi**       | HTTP API, auth middleware, preferences            |
+| **celery_worker** | Background report pipeline                        |
+| **redis**         | Celery broker & result backend                    |
+| **SQLite**        | Users, API keys, preferences, request history     |
+| **traefik**       | Reverse proxy, Let's Encrypt SSL (optional)       |
 
 ## Quick start (local development — WSL / laptop)
 
-Без Traefik, без pull образа proxy. API сразу на **http://localhost:8000/docs**.
+Без Traefik. API на **http://localhost:8000/docs**.
 
 ```bash
 cp .env.example .env
+# Опционально для локальных тестов без ключей:
+# echo "DISABLE_AUTH=true" >> .env
+
 chmod +x deploy-dev.sh scripts/healthcheck_celery.sh scripts/pull-images.sh
 ./deploy-dev.sh
+```
+
+Проверка:
+
+```bash
+curl http://localhost:8000/health
+
+# Полный сценарий: ключ → preferences → отчёт
+python3 -m pip install httpx   # один раз, если нет
+python3 scripts/test_api_key.py
 ```
 
 Если Docker Hub недоступен, в `.env` укажите зеркало Redis:
@@ -33,7 +51,74 @@ chmod +x deploy-dev.sh scripts/healthcheck_celery.sh scripts/pull-images.sh
 REDIS_IMAGE=public.ecr.aws/docker/library/redis:7-alpine
 ```
 
-## Production (VPS + Traefik)
+## Authentication & user memory
+
+### Получить API-ключ (без аутентификации)
+
+```bash
+curl -X POST https://ваш-домен/api/keys/generate \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+Ответ:
+
+```json
+{
+  "api_key": "…",
+  "user_id": "uuid-…"
+}
+```
+
+Сохраните `api_key` — он показывается **один раз** при создании.
+
+### Использовать ключ
+
+Все защищённые эндпоинты требуют заголовок:
+
+```http
+X-API-Key: ваш_ключ
+```
+
+Исключения (без ключа): `/health`, `/docs`, `/openapi.json`, `/redoc`, `/`, `/api/keys/generate`.
+
+### Локально без ключей
+
+В `.env`:
+
+```bash
+DISABLE_AUTH=true
+```
+
+**Не используйте в production.**
+
+### Предпочтения пользователя
+
+```bash
+# Получить
+curl https://ваш-домен/api/preferences -H "X-API-Key: KEY"
+
+# Обновить
+curl -X PUT https://ваш-домен/api/preferences \
+  -H "X-API-Key: KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"theme": "dark", "preferred_chart_type": "pie", "default_email": "user@example.com"}'
+
+# Сбросить к дефолтам
+curl -X DELETE https://ваш-домен/api/preferences -H "X-API-Key: KEY"
+```
+
+| Поле                   | Значения              | Эффект                                      |
+|------------------------|-----------------------|---------------------------------------------|
+| `preferred_chart_type` | `bar`, `line`, `pie`  | Тип графиков в отчёте                       |
+| `theme`                | `light`, `dark`       | Цветовая схема графиков                     |
+| `default_email`        | email                 | Email по умолчанию, если не указан в запросе |
+| `company_logo_url`     | URL                   | Логотип в PDF (если доступен по URL)        |
+| `timezone`             | IANA, напр. `UTC`     | Метаданные (расширяемо)                     |
+
+## Production (VPS)
+
+### Режим Traefik (порты 80/443 на ReportAgent)
 
 ```bash
 cp .env.example .env   # DOMAIN, SMTP, LETSENCRYPT_EMAIL
@@ -41,6 +126,37 @@ docker network create traefik_network || true
 chmod +x deploy.sh
 ./deploy.sh
 ```
+
+Проверка: `https://ваш-домен/health`
+
+### Режим external nginx (порты 80/443 уже заняты, напр. SMDG)
+
+В `.env` на VPS:
+
+```bash
+TRAEFIK_ENABLED=false
+EXTERNAL_NGINX_NETWORK=smdg_default   # имя сети вашего nginx-контейнера
+DOMAIN=reportagent.fileguardian.info  # поддомен ReportAgent
+```
+
+```bash
+./deploy.sh
+```
+
+**Важно:**
+
+- `curl http://localhost:8000/health` на VPS **не сработает** — порт 8000 не проброшен на хост, только внутри Docker.
+- Проверяйте через поддомен: `https://ReportAgent.fileguardian.info/health`
+- Корневой домен (`fileguardian.info`) может быть **другим сервисом** (SMDG) — это нормально.
+
+Проверка изнутри Docker:
+
+```bash
+docker exec reportagent_fastapi curl -s http://localhost:8000/health
+docker exec smdg-nginx-1 curl -s http://reportagent_fastapi:8000/health
+```
+
+Пример nginx: `docs/nginx-docker-existing.example.conf`
 
 ## GitHub Actions — автодеплой на VPS
 
@@ -54,66 +170,46 @@ Workflows в `.github/workflows/`:
 ### Однократная подготовка VPS
 
 ```bash
-# Docker + compose (если ещё нет)
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER   # перелогиниться
-
-# Сеть Traefik
 docker network create traefik_network 2>/dev/null || true
-
-# SSH-ключ для GitHub Actions (на вашем ПК)
-ssh-keygen -t ed25519 -C "github-actions-reportagent" -f ~/.ssh/reportagent_deploy
-ssh-copy-id -i ~/.ssh/reportagent_deploy.pub ubuntu@YOUR_VPS_IP
 ```
 
-Публичный ключ пользователя VPS должен быть в `~/.ssh/authorized_keys`.  
-Приватный ключ `reportagent_deploy` — в GitHub Secret `VPS_SSH_PRIVATE_KEY`.
+SSH-ключ для GitHub Actions — в Secret `VPS_SSH_PRIVATE_KEY`.
 
 ### Secrets (Settings → Secrets and variables → Actions)
 
-| Secret | Пример | Описание |
-|--------|--------|----------|
-| `VPS_HOST` | `203.0.113.10` | IP или домен VPS |
-| `VPS_USER` | `ubuntu` | SSH-пользователь |
-| `VPS_SSH_PRIVATE_KEY` | содержимое `reportagent_deploy` | Приватный SSH-ключ |
-| `VPS_PORT` | `22` | SSH-порт (опционально) |
-| `GIT_DEPLOY_TOKEN` | GitHub PAT | Только для **приватного** репозитория (`repo` scope) |
+| Secret | Описание |
+|--------|----------|
+| `VPS_HOST` | IP или домен VPS |
+| `VPS_USER` | SSH-пользователь |
+| `VPS_SSH_PRIVATE_KEY` | Приватный SSH-ключ |
+| `VPS_PORT` | SSH-порт (опционально, по умолчанию 22) |
+| `GIT_DEPLOY_TOKEN` | GitHub PAT для приватного репо (`repo` scope) |
 
-### Variables (не секреты)
+### Variables
 
 | Variable | Пример | Описание |
 |----------|--------|----------|
-| `DEPLOY_PATH` | `~/ReportAgent` | Путь на VPS (по умолчанию `$HOME/ReportAgent`, **без sudo**) |
-| `DOMAIN` | `reportagent.fileguardian.info` | Домен **в нижнем регистре**, как в nginx/DNS. Для optional health-check |
-| `SKIP_EXTERNAL_HEALTH_CHECK` | `true` | Пропустить проверку https://DOMAIN/health (если nginx ещё не настроен) |
-
-### Environment `production`
-
-Создайте environment **production** в GitHub (Settings → Environments) — можно включить manual approval перед деплоем.
+| `DEPLOY_PATH` | `~/ReportAgent` | Путь на VPS |
+| `DOMAIN` | `reportagent.fileguardian.info` | Домен **в нижнем регистре** для optional health-check |
+| `SKIP_EXTERNAL_HEALTH_CHECK` | `true` | Пропустить проверку `https://DOMAIN/health` |
 
 ### Первый автодеплой
 
-1. Убедитесь, что на VPS есть `.env` (после первого клона):
-   ```bash
-   # путь по умолчанию — домашняя папка пользователя SSH:
-   cd ~/ReportAgent
-   cp .env.example .env && nano .env
-   mkdir -p storage/pdfs storage/uploads logs traefik/acme
-   touch traefik/acme/acme.json && chmod 600 traefik/acme/acme.json
-   ```
-   Для `/opt/ReportAgent` создайте каталог **один раз вручную по SSH**:
-   ```bash
-   sudo mkdir -p /opt/ReportAgent && sudo chown $USER:$USER /opt/ReportAgent
-   ```
-   и задайте GitHub Variable `DEPLOY_PATH=/opt/ReportAgent`.
-2. Запушьте в `master` (или `main`) — workflow клонирует репо (без sudo).
+```bash
+cd ~/ReportAgent
+cp .env.example .env && nano .env
+mkdir -p app/data storage/pdfs storage/uploads logs traefik/acme
+touch traefik/acme/acme.json && chmod 600 traefik/acme/acme.json
+```
 
-Ручной запуск: Actions → **Deploy to VPS** → Run workflow.
+Запушьте в `master` — workflow задеплоит автоматически.
 
 ## Синхронизация: localhost ↔ GitHub ↔ VPS
 
 **Источник правды для кода — GitHub (`master`).**  
-Файлы **не синхронизируются через git**: `.env`, `storage/`, `logs/`, PDF на диске.
+Через git **не синхронизируются**: `.env`, `app/data/*.db`, `storage/`, `logs/`.
 
 ```
 localhost (WSL)  ──push──►  GitHub  ──Actions/SSH──►  VPS
@@ -121,197 +217,95 @@ localhost (WSL)  ──push──►  GitHub  ──Actions/SSH──►  VPS
      └──────── pull ──────────┘
 ```
 
-### Схема работы
-
 | Где правите | Действия |
 |-------------|----------|
-| **localhost (Cursor/WSL)** | `git add` → `git commit` → `git push origin master` → автодеплой на VPS |
-| **подтянуть с GitHub на ПК** | `git pull origin master` |
+| **localhost (WSL)** | `git push origin master` → автодеплой |
 | **VPS вручную** | `cd ~/ReportAgent && ./scripts/sync-pull.sh --deploy` |
 
-### Localhost → GitHub → VPS (основной поток)
+### Что не коммитить
 
-```bash
-# на WSL / локально
-cd ~/ReportAgent
-git status
-git add .
-git commit -m "описание изменений"
-git push origin master
-# GitHub Actions сам задеплоит на VPS (см. Actions)
-```
-
-### Localhost ← GitHub
-
-```bash
-cd ~/ReportAgent
-git pull origin master
-```
-
-### VPS ← GitHub (без Actions)
-
-```bash
-ssh smdg@74.208.252.225
-cd ~/ReportAgent
-./scripts/sync-pull.sh --deploy
-```
-
-Только pull без пересборки:
-
-```bash
-./scripts/sync-pull.sh
-```
-
-### Проверить, что всё на одном коммите
-
-```bash
-# localhost
-git log -1 --oneline
-
-# VPS
-ssh smdg@74.208.252.225 'cd ~/ReportAgent && git log -1 --oneline'
-
-# GitHub — в браузере или:
-git ls-remote origin master
-```
-
-Коммиты должны совпадать (например `503e754 ...`).
-
-### Что не коммитить / не трогать при sync
-
-| Файл / папка | Где живёт | Примечание |
-|--------------|-----------|------------|
-| `.env` | только VPS (и локально у вас) | секреты, SMTP, DOMAIN |
-| `storage/`, `logs/` | VPS | данные runtime |
-| `~/SMDG/nginx-https.conf` | VPS | **отдельный проект smdg**, не ReportAgent repo |
-| `sample_sales.csv`, `report_*.pdf` в корне VPS | мусор от тестов | можно удалить |
-
-### Если на VPS есть локальные правки git
-
-```bash
-cd ~/ReportAgent
-git status
-git diff
-
-# отменить случайные правки в коде (сохранить .env!)
-git restore .
-
-# подтянуть GitHub
-git pull origin master
-./deploy.sh
-```
-
-### Сейчас у вас
-
-Код **уже синхронизирован** на коммите `503e754`. На VPS только:
-- `chmod` на `scripts/preflight-prod.sh` (безопасно: `git restore scripts/preflight-prod.sh`)
-- лишние файлы: `.env.save`, `sample_sales.csv`, `report_*.pdf` — не в git
-
-Конфиг nginx для `reportagent.fileguardian.info` — в **`~/SMDG/nginx-https.conf`** (бэкап там же). В ReportAgent repo его нет; при переезде VPS сохраните этот файл отдельно.
+| Файл / папка | Примечание |
+|--------------|------------|
+| `.env` | Секреты, SMTP, DOMAIN |
+| `app/data/*.db` | SQLite с API-ключами и историей |
+| `storage/`, `logs/` | Runtime-данные |
 
 ## Деплой на VPS (вручную)
 
-Требования: **Ubuntu 22.04+**, Docker и Docker Compose plugin установлены, DNS A-запись домена указывает на IP сервера.
+### 1. Настройка `.env`
 
-### 1. Клонирование
+| Переменная | Описание |
+|------------|----------|
+| `DOMAIN` | Домен ReportAgent (поддомен, если nginx shared) |
+| `LETSENCRYPT_EMAIL` | Email для Let's Encrypt (Traefik mode) |
+| `SMTP_*` | Настройки почты |
+| `SECRET_KEY` | Случайная строка |
+| `DATABASE_URL` | В Docker задаётся автоматически (`sqlite:////app/app/data/users.db`). В `.env` можно указать `sqlite:///./app/data/users.db` для ясности |
+| `DEFAULT_PREFERRED_CHART_TYPE` | `bar` / `line` / `pie` для новых пользователей |
+| `TRAEFIK_ENABLED` | `true` — Traefik; `false` — host/external nginx |
+| `EXTERNAL_NGINX_NETWORK` | Имя Docker-сети nginx (режим B) |
 
-```bash
-git clone <your-repo-url> ReportAgent
-cd ReportAgent
-```
-
-### 2. Настройка окружения
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Обязательно заполните:
-
-| Переменная          | Описание                              |
-|---------------------|---------------------------------------|
-| `DOMAIN`            | Ваш домен, например `reports.example.com` |
-| `LETSENCRYPT_EMAIL` | Email для Let's Encrypt               |
-| `SMTP_HOST`         | SMTP-сервер                           |
-| `SMTP_PORT`         | Обычно `587`                          |
-| `SMTP_USER`         | Логин SMTP                            |
-| `SMTP_PASSWORD`     | Пароль SMTP                           |
-| `SMTP_FROM`         | Адрес отправителя                     |
-| `SECRET_KEY`        | Случайная строка                      |
-
-Для тестирования SSL без лимитов Let's Encrypt раскомментируйте staging CA в `.env`:
-
-```bash
-ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory
-```
-
-### 3. Подготовка директорий и сети
+### 2. Подготовка и запуск
 
 ```bash
 docker network create traefik_network 2>/dev/null || true
-mkdir -p storage/pdfs storage/uploads logs traefik/acme
-touch traefik/acme/acme.json
-chmod 600 traefik/acme/acme.json
+mkdir -p app/data storage/pdfs storage/uploads logs traefik/acme
+touch traefik/acme/acme.json && chmod 600 traefik/acme/acme.json
 chmod +x deploy.sh scripts/healthcheck_celery.sh
-```
-
-### 4. Запуск
-
-```bash
 ./deploy.sh
 ```
 
-Скрипт автоматически:
-
-- создаёт сеть `traefik_network` (если нет);
-- загружает переменные из `.env`;
-- собирает образы;
-- останавливает старые контейнеры (`down --remove-orphans`);
-- поднимает стек (`up -d`);
-- чистит dangling-образы;
-- выводит статус контейнеров.
-
-### 5. Проверка
-
-1. Откройте `https://ваш-домен/docs` — должен открыться Swagger UI.
-2. `GET /health` → `{"status":"ok"}`.
-3. Скачайте тестовый CSV: `GET /samples/sample_sales.csv` (или `samples/sample_sales.csv` в репозитории).
-4. Отправьте через `POST /generate_report`:
-   - `file` — CSV или Excel (без email, если хотите только скачать PDF);
-   - `email` — опционально, для доставки на почту.
-5. Следите за воркером:
+### 3. Проверка
 
 ```bash
-docker logs -f reportagent_celery_worker
+# External nginx mode — через поддомен
+curl https://ReportAgent.fileguardian.info/health
+
+# Traefik mode — через DOMAIN из .env
+curl https://ваш-домен/health
+
+# Swagger
+# https://ваш-домен/docs
 ```
 
-6. Проверьте статус задачи:
+### 4. Тест отчёта с API-ключом
 
 ```bash
-curl https://ваш-домен/tasks/<task_id>
-```
+# 1. Ключ
+API_KEY=$(curl -s -X POST "https://ваш-домен/api/keys/generate" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com"}' | jq -r .api_key)
 
-7. Скачайте PDF без email:
-
-```bash
-curl -OJ https://ваш-домен/tasks/<task_id>/pdf
-```
-
-8. Если указан `email` — PDF также придёт на почту. Файл сохраняется в `storage/pdfs/<task_id>/`.
-
-### Быстрый тест без Swagger
-
-```bash
-# Без email — только скачивание PDF
+# 2. Отчёт
 TASK_ID=$(curl -s -X POST "https://ваш-домен/generate_report" \
+  -H "X-API-Key: $API_KEY" \
   -F "file=@samples/sample_sales.csv" | jq -r .task_id)
 
-# Подождать ~10 сек, затем:
-curl -OJ "https://ваш-домен/tasks/${TASK_ID}/pdf"
+# 3. PDF (~10 сек)
+curl -OJ -H "X-API-Key: $API_KEY" "https://ваш-домен/tasks/${TASK_ID}/pdf"
 ```
 
 ## API
+
+### Публичные эндпоинты (без `X-API-Key`)
+
+| Method | Path | Описание |
+|--------|------|----------|
+| `GET` | `/health` | Healthcheck |
+| `GET` | `/docs`, `/redoc`, `/openapi.json` | Swagger / OpenAPI |
+| `POST` | `/api/keys/generate` | Создать API-ключ |
+
+### Защищённые эндпоинты (требуют `X-API-Key`)
+
+| Method | Path | Описание |
+|--------|------|----------|
+| `GET` | `/api/preferences` | Текущие настройки |
+| `PUT` | `/api/preferences` | Обновить настройки |
+| `DELETE` | `/api/preferences` | Сбросить к дефолтам |
+| `POST` | `/generate_report` | Поставить задачу на отчёт |
+| `GET` | `/tasks/{task_id}` | Статус задачи |
+| `GET` | `/tasks/{task_id}/pdf` | Скачать PDF |
+| `GET` | `/samples/sample_sales.csv` | Тестовый CSV |
 
 ### `POST /generate_report`
 
@@ -321,9 +315,11 @@ Multipart form:
 |--------------|--------|----------|--------------------------------|
 | `file`       | file   | no*      | CSV, `.xlsx`, `.xls`           |
 | `sheets_url` | string | no*      | Public Google Sheets URL       |
-| `email`      | string | no       | Опционально — доставка PDF на почту |
+| `email`      | string | no       | Email; если пусто — `default_email` из preferences |
 
 \* Укажите **либо** `file`, **либо** `sheets_url`.
+
+**Headers:** `X-API-Key: …` (если `DISABLE_AUTH` не включён)
 
 **Response** `202`:
 
@@ -332,43 +328,57 @@ Multipart form:
   "task_id": "abc-123",
   "status": "queued",
   "message": "Report generation started. Download at GET /tasks/abc-123/pdf when ready.",
-  "download_url": "/tasks/abc-123/pdf"
+  "download_url": "/tasks/abc-123/pdf",
+  "user_id": "uuid-…",
+  "usage_count": 1
 }
 ```
 
-### `GET /tasks/{task_id}`
+`usage_count` — число запросов пользователя в таблице `history`.
 
-Проверка статуса Celery-задачи. При `SUCCESS` в `result` есть `download_url`.
+### `POST /api/keys/generate`
 
-### `GET /tasks/{task_id}/pdf`
+```json
+{ "email": "user@example.com" }
+```
 
-Скачивание готового PDF. Возвращает `202`, если отчёт ещё генерируется.
-
-### `GET /samples/sample_sales.csv`
-
-Тестовый CSV с продажами (числовые и категориальные колонки для графиков).
-
-### `GET /health`
-
-Healthcheck для Docker и Traefik.
+`email` опционален.
 
 ## Agents
 
-| Agent              | File                    | Log file              |
-|--------------------|-------------------------|-----------------------|
-| `agent_parser`     | `app/agents/parser.py`  | `logs/log_parser.log` |
-| `agent_analyst`    | `app/agents/analyst.py` | `logs/log_analyst.log`|
-| `agent_visualizer` | `app/agents/visualizer.py` | `logs/log_visualizer.log` |
-| `agent_sender`     | `app/agents/sender.py`  | `logs/log_sender.log` |
+| Agent                 | File                         | Log file                    |
+|-----------------------|------------------------------|-----------------------------|
+| `agent_context_loader`| `app/agents/context_loader.py` | `logs/log_context_loader.log` |
+| `agent_parser`        | `app/agents/parser.py`       | `logs/log_parser.log`       |
+| `agent_analyst`       | `app/agents/analyst.py`      | `logs/log_analyst.log`      |
+| `agent_visualizer`    | `app/agents/visualizer.py`   | `logs/log_visualizer.log`   |
+| `agent_sender`        | `app/agents/sender.py`       | `logs/log_sender.log`       |
+
+Pipeline: `context_loader` → `parser` → `analyst` → `visualizer` → `sender`
+
+## Database (SQLite)
+
+| Таблица | Назначение |
+|---------|------------|
+| `users` | `id`, `api_key`, `email`, `last_used_at`, `is_active` |
+| `preferences` | chart type, theme, default email, logo URL, timezone |
+| `history` | Аналитика запросов (`user_id`, `task_id`, summary) |
+
+- Файл: `app/data/users.db` (создаётся при старте)
+- Миграции: `app/db/migrations/001_init.sql` (применяются автоматически)
+- В Docker: volume `./app/data:/app/app/data`
+
+API-ключи в логах маскируются (`****abcd` — только последние 4 символа).
 
 ## Volumes
 
-| Host path           | Purpose                    |
-|---------------------|----------------------------|
-| `storage/pdfs/`     | Generated PDFs and charts  |
-| `storage/uploads/`  | Uploaded source files      |
-| `logs/`             | Application & Traefik logs |
-| `redis-data`        | Redis persistence (Docker volume) |
+| Host path           | Purpose                         |
+|---------------------|---------------------------------|
+| `app/data/`         | SQLite `users.db` (ключи, prefs)|
+| `storage/pdfs/`     | Generated PDFs and charts       |
+| `storage/uploads/`  | Uploaded source files           |
+| `logs/`             | Application & Traefik logs      |
+| `redis-data`        | Redis persistence (Docker vol.) |
 
 ## Useful commands
 
@@ -382,8 +392,8 @@ docker logs -f reportagent_fastapi
 # Celery worker logs
 docker logs -f reportagent_celery_worker
 
-# Traefik logs
-docker logs -f reportagent_traefik
+# Health inside container (VPS, external nginx mode)
+docker exec reportagent_fastapi curl -s http://localhost:8000/health
 
 # Restart after .env changes
 ./deploy.sh
@@ -398,19 +408,35 @@ ReportAgent/
 │   ├── tasks.py
 │   ├── celery_app.py
 │   ├── agents/
+│   │   ├── context_loader.py
+│   │   ├── parser.py
+│   │   ├── analyst.py
+│   │   ├── visualizer.py
+│   │   └── sender.py
+│   ├── db/
+│   │   ├── database.py
+│   │   ├── init_db.py
+│   │   └── migrations/
+│   ├── middleware/
+│   │   ├── auth.py
+│   │   └── request_logging.py
+│   ├── routers/
+│   │   ├── keys.py
+│   │   └── preferences.py
 │   ├── models/
+│   ├── data/              # users.db (gitignored)
 │   ├── utils/
 │   ├── samples/
 │   ├── Dockerfile
 │   └── requirements.txt
-├── samples/
-├── traefik/
 ├── scripts/
+│   ├── test_api_key.py
+│   └── github-deploy.sh
+├── docs/
+├── traefik/
 ├── storage/
 ├── logs/
 ├── .github/workflows/
-│   ├── ci.yml
-│   └── deploy-vps.yml
 ├── docker-compose.prod.yml
 ├── docker-compose.dev.yml
 ├── deploy.sh
@@ -418,132 +444,81 @@ ReportAgent/
 └── .env.example
 ```
 
+## Troubleshooting
+
+### `curl localhost:8000` — connection refused (VPS)
+
+В режиме **external nginx** FastAPI не слушает хост-порт 8000. Используйте поддомен или:
+
+```bash
+docker exec reportagent_fastapi curl -s http://localhost:8000/health
+```
+
+### `reportagent_fastapi is unhealthy` после деплоя
+
+Частая причина — в `.env` остался старый `DATABASE_URL=postgresql://…`.  
+Docker Compose задаёт SQLite автоматически; обновите `.env`:
+
+```bash
+DATABASE_URL=sqlite:///./app/data/users.db
+```
+
+Логи:
+
+```bash
+docker logs reportagent_fastapi --tail 50
+```
+
+### Корневой домен отвечает другим сервисом
+
+`https://fileguardian.info` → SMDG, `https://ReportAgent.fileguardian.info` → ReportAgent.  
+Проверяйте health на **поддомене** ReportAgent.
+
+### port 80 already allocated
+
+См. варианты A/B/C ниже.
+
+### Docker Hub timeout
+
+Локально: `./deploy-dev.sh`.  
+Production: `REDIS_IMAGE=public.ecr.aws/docker/library/redis:7-alpine` в `.env`.
+
+---
+
 ## Troubleshooting: port 80 already allocated
 
 ```text
 Bind for 0.0.0.0:80 failed: port is already allocated
 ```
 
-На VPS **уже занят порт 80** (часто nginx, apache или другой Docker-контейнер).
-
-### Узнать, кто занял порт (на VPS по SSH)
-
-```bash
-sudo ss -tlnp | grep -E ':80|:443'
-docker ps --format 'table {{.Names}}\t{{.Ports}}'
-```
-
 ### Вариант A — освободить 80/443 для Traefik
 
 ```bash
-# если nginx на хосте:
-sudo systemctl stop nginx
-sudo systemctl disable nginx
-
-# если другой контейнер:
-docker ps
-docker stop <имя_контейнера>
+sudo systemctl stop nginx && sudo systemctl disable nginx
+# или: docker stop <контейнер_на_80>
+./deploy.sh
 ```
 
-Затем снова deploy (GitHub Actions или `./deploy.sh`).
+### Вариант B — nginx уже в Docker (`smdg-nginx-1`)
 
-### Вариант B — nginx уже в Docker (`smdg-nginx-1` и т.п.)
-
-Traefik ReportAgent **не нужен** — 80/443 уже у другого стека.
-
-**1. Узнайте имя Docker-сети nginx:**
-```bash
-docker inspect smdg-nginx-1 --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
-# обычно: smdg_default
-```
-
-**2. В `~/ReportAgent/.env` на VPS:**
 ```bash
 TRAEFIK_ENABLED=false
 EXTERNAL_NGINX_NETWORK=smdg_default
-DOMAIN=fileguardian.info
+DOMAIN=reportagent.fileguardian.info
 ```
 
-**3. Удалите сломанный traefik и передеплойте:**
+Добавьте `server_name` для поддомена в nginx → `http://reportagent_fastapi:8000`.  
+Пример: `docs/nginx-docker-existing.example.conf`
+
 ```bash
 docker rm -f reportagent_traefik 2>/dev/null || true
-cd ~/ReportAgent && git pull && ./deploy.sh
-```
-
-**4. В nginx проекта smdg** добавьте прокси на `http://reportagent_fastapi:8000`  
-(пример: `docs/nginx-docker-existing.example.conf`), перезагрузите nginx:
-```bash
-docker exec smdg-nginx-1 nginx -s reload
-```
-
-**5. Проверка из nginx-контейнера:**
-```bash
+./deploy.sh
 docker exec smdg-nginx-1 curl -s http://reportagent_fastapi:8000/health
 ```
 
-### Вариант C — nginx на хосте (не в Docker)
+### Вариант C — nginx на хосте
 
-В `.env`: `TRAEFIK_ENABLED=false` (без `EXTERNAL_NGINX_NETWORK`).  
-FastAPI на `127.0.0.1:8000` — см. `docs/nginx-host.example.conf`.
-
-## Troubleshooting: Docker Hub timeout
-
-Ошибка вида:
-
-```text
-failed to fetch anonymous token: read tcp ...->104.18.43.178:443: connection timed out
-```
-
-означает, что Docker не может скачать `traefik` / `redis` с Docker Hub (часто на WSL, VPN, корпоративной сети).
-
-### Быстрое решение (локально)
-
-```bash
-./deploy-dev.sh
-```
-
-Traefik не нужен — приложение на `http://localhost:8000`.
-
-### Зеркало Redis (production / dev)
-
-В `.env`:
-
-```bash
-REDIS_IMAGE=public.ecr.aws/docker/library/redis:7-alpine
-```
-
-Затем снова `./deploy.sh` или `./deploy-dev.sh`.
-
-### Повторные попытки pull
-
-```bash
-PULL_RETRIES=10 PULL_RETRY_DELAY=30 ./deploy.sh
-```
-
-### Если образы уже скачаны
-
-```bash
-SKIP_PULL=1 ./deploy.sh
-```
-
-### Docker registry mirror (WSL / Ubuntu)
-
-`/etc/docker/daemon.json`:
-
-```json
-{
-  "registry-mirrors": ["https://mirror.gcr.io"]
-}
-```
-
-```bash
-sudo systemctl restart docker   # Linux
-# Docker Desktop: Settings → Docker Engine → вставить JSON → Apply
-```
-
-### VPS
-
-На VPS с нормальным доступом к Docker Hub `./deploy.sh` обычно работает с первого раза. На ноутбуке тестируйте через `./deploy-dev.sh`.
+`TRAEFIK_ENABLED=false`, FastAPI на `127.0.0.1:8000` — `docs/nginx-host.example.conf`.
 
 ## License
 
