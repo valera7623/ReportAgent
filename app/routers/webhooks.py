@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.webhook.registration import (
@@ -141,10 +141,11 @@ async def reactivate_webhook_endpoint(webhook_id: str, request: Request) -> Webh
     return _to_response(updated)
 
 
-@router.delete("/{webhook_id}", status_code=204)
-async def delete_webhook(webhook_id: str, request: Request) -> None:
+@router.delete("/{webhook_id}", status_code=204, response_class=Response)
+async def delete_webhook(webhook_id: str, request: Request) -> Response:
     """Unregister a webhook."""
     user_id = _require_user_id(request)
     if not unregister_webhook(webhook_id, user_id):
         raise HTTPException(status_code=404, detail="Webhook not found")
     logger.info("Deleted webhook %s for user %s", webhook_id, user_id)
+    return Response(status_code=204)
