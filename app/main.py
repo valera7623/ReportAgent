@@ -26,7 +26,7 @@ from app.models.schemas import (
     TaskState,
     TaskStatusResponse,
 )
-from app.routers import admin_self_healing, keys, preferences, voice
+from app.routers import admin_self_healing, admin_webhooks, keys, preferences, voice, webhooks
 from app.tasks import generate_report
 from app.voice.config import voice_available
 from app.voice.redis_store import get_voice_status, load_partial_state
@@ -59,7 +59,7 @@ app = FastAPI(
         "Receive by email or download via API. "
         "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
     ),
-    version="1.6.0",
+    version="1.7.0",
     lifespan=lifespan,
 )
 
@@ -71,6 +71,8 @@ app.include_router(keys.router)
 app.include_router(preferences.router)
 app.include_router(voice.router)
 app.include_router(admin_self_healing.router)
+app.include_router(admin_webhooks.router)
+app.include_router(webhooks.router)
 
 
 def _download_url_for_format(task_id: str, output_format: str) -> str:

@@ -273,6 +273,35 @@
       ],
       "title": "Fixes applied (auto vs manual)",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1, "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 68 },
+      "id": 18,
+      "targets": [
+        {
+          "expr": "sum(rate(webhook_attempts_total{success=\"true\"}[1h])) / sum(rate(webhook_attempts_total[1h]))",
+          "legendFormat": "delivery success rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Webhook delivery rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 68 },
+      "id": 19,
+      "targets": [
+        {
+          "expr": "sum by (event) (rate(webhook_attempts_total[5m]))",
+          "legendFormat": "{{event}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Webhook attempts by event",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

@@ -15,13 +15,17 @@ from app.agents.parser import run_parser
 from app.agents.visualizer import run_visualizer
 from app.celery_app import celery_app
 from app.config.output_formats import EXTERNAL_FORMATS, resolve_output_format
+from app.db.database import get_user_by_api_key
 from app.models.schemas import AgentError
 from app.voice.orchestrator import process_voice
 from app.voice.storage import delete_voice_file
 from app.utils.logger import get_logger
 from app.utils.metrics import report_generation_duration_seconds
+from app.webhook.dispatcher import build_webhook_payload, fire_report_webhooks
 
 logger = get_logger("tasks", "log_tasks.log")
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CELERY_QUEUE_KEY = os.getenv("CELERY_QUEUE_NAME", "celery")
 METRICS_QUEUE_REDIS_KEY = "metrics:celery_queue_length"
 
@@ -105,6 +109,70 @@ def _build_task_result(
     return result
 
 
+def _resolve_user_id(api_key: str | None) -> str | None:
+    if not api_key:
+        return None
+    user = get_user_by_api_key(api_key)
+    return user["id"] if user else None
+
+
+def _fire_success_webhooks(
+    *,
+    task_id: str,
+    user_id: str | None,
+    result: dict[str, Any],
+    source_type: str,
+    duration_seconds: float,
+) -> None:
+    if not user_id:
+        return
+    payload = build_webhook_payload(
+        event="report.completed",
+        task_id=task_id,
+        status="SUCCESS",
+        user_id=user_id,
+        output_format=result.get("output_format"),
+        download_path=result.get("download_url"),
+        source_type=source_type,
+        duration_seconds=duration_seconds,
+    )
+    fire_report_webhooks(
+        event="report.completed",
+        task_id=task_id,
+        user_id=user_id,
+        payload=payload,
+    )
+
+
+def _fire_failure_webhooks(
+    *,
+    task_id: str,
+    user_id: str | None,
+    error_message: str,
+    source_type: str,
+    duration_seconds: float,
+    output_format: str | None = None,
+) -> None:
+    if not user_id:
+        return
+    payload = build_webhook_payload(
+        event="report.failed",
+        task_id=task_id,
+        status="FAILURE",
+        user_id=user_id,
+        error_message=error_message,
+        output_format=output_format,
+        source_type=source_type,
+        duration_seconds=duration_seconds,
+    )
+    fire_report_webhooks(
+        event="report.failed",
+        task_id=task_id,
+        user_id=user_id,
+        payload=payload,
+    )
+
+
 def _run_report_pipeline(
     task_id: str,
     *,
@@ -168,6 +236,12 @@ def generate_report(
     task_id = self.request.id or "unknown"
     logger.info("Task %s started (email=%s, format=%s)", task_id, email or "none", output_format or "default")
 
+    user_id = _resolve_user_id(api_key)
+    source_type = _source_type_label(sheets_url=sheets_url, file_path=file_path)
+    prefs = get_user_preferences(api_key)
+    fmt = resolve_output_format(output_format, prefs)
+    started = time.perf_counter()
+
     try:
         result = _run_report_pipeline(
             task_id,
@@ -178,14 +252,37 @@ def generate_report(
             output_format=output_format,
         )
         logger.info("Task %s completed successfully (format=%s)", task_id, result.get("output_format"))
+        _fire_success_webhooks(
+            task_id=task_id,
+            user_id=user_id,
+            result=result,
+            source_type=source_type,
+            duration_seconds=time.perf_counter() - started,
+        )
         return result
 
     except AgentError as exc:
         logger.error("Task %s failed in agent '%s': %s", task_id, exc.agent, exc.message)
+        _fire_failure_webhooks(
+            task_id=task_id,
+            user_id=user_id,
+            error_message=f"[{exc.agent}] {exc.message}",
+            source_type=source_type,
+            duration_seconds=time.perf_counter() - started,
+            output_format=fmt,
+        )
         raise RuntimeError(f"[{exc.agent}] {exc.message}") from exc
 
     except Exception as exc:
         logger.exception("Task %s failed with unexpected error", task_id)
+        _fire_failure_webhooks(
+            task_id=task_id,
+            user_id=user_id,
+            error_message=str(exc),
+            source_type=source_type,
+            duration_seconds=time.perf_counter() - started,
+            output_format=fmt,
+        )
         raise
 
 
@@ -210,18 +307,23 @@ def generate_voice_report(
     task_id = self.request.id or "unknown"
     logger.info("Voice task %s started (user=%s)", task_id, user_id or "anon")
 
+    resolved_user_id = user_id or _resolve_user_id(api_key)
+    source_type = "voice"
+    started = time.perf_counter()
+    output_fmt: str | None = None
+
     try:
         prefs = preferences or get_user_preferences(api_key)
-        output_format = prefs.get("default_output_format")
+        output_fmt = prefs.get("default_output_format")
         if intent and intent.get("output_format"):
-            output_format = intent["output_format"]
+            output_fmt = intent["output_format"]
 
         if transcript is None or intent is None:
             voice_result = process_voice(
                 audio_file_path,
                 prefs,
                 email_override=email,
-                user_id=user_id,
+                user_id=resolved_user_id,
             )
             if voice_result.status == "needs_clarification":
                 raise VoiceClarificationError(
@@ -235,7 +337,7 @@ def generate_voice_report(
             file_path = voice_result.file_path
             prefs = voice_result.preferences
             if voice_result.intent.get("output_format"):
-                output_format = voice_result.intent["output_format"]
+                output_fmt = voice_result.intent["output_format"]
 
         result = _run_report_pipeline(
             task_id,
@@ -245,11 +347,18 @@ def generate_voice_report(
             api_key=api_key,
             preferences=prefs,
             voice=True,
-            output_format=output_format,
+            output_format=output_fmt,
         )
         result["voice_transcript"] = transcript
         result["voice_intent"] = intent
         logger.info("Voice task %s completed successfully", task_id)
+        _fire_success_webhooks(
+            task_id=task_id,
+            user_id=resolved_user_id,
+            result=result,
+            source_type=source_type,
+            duration_seconds=time.perf_counter() - started,
+        )
         return result
 
     except VoiceClarificationError as exc:
@@ -266,10 +375,26 @@ def generate_voice_report(
 
     except AgentError as exc:
         logger.error("Voice task %s failed in agent '%s': %s", task_id, exc.agent, exc.message)
+        _fire_failure_webhooks(
+            task_id=task_id,
+            user_id=resolved_user_id,
+            error_message=f"[{exc.agent}] {exc.message}",
+            source_type=source_type,
+            duration_seconds=time.perf_counter() - started,
+            output_format=output_fmt,
+        )
         raise RuntimeError(f"[{exc.agent}] {exc.message}") from exc
 
     except Exception as exc:
         logger.exception("Voice task %s failed with unexpected error", task_id)
+        _fire_failure_webhooks(
+            task_id=task_id,
+            user_id=resolved_user_id,
+            error_message=str(exc),
+            source_type=source_type,
+            duration_seconds=time.perf_counter() - started,
+            output_format=output_fmt,
+        )
         raise
 
     finally:

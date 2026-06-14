@@ -42,6 +42,17 @@ services:
       - ALERTS_ENABLED=${ALERTS_ENABLED:-true}
       - DOMAIN=${DOMAIN:-localhost}
       - GRAFANA_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
+      - WEBHOOK_ENABLED=${WEBHOOK_ENABLED:-true}
+      - WEBHOOK_TIMEOUT_SECONDS=${WEBHOOK_TIMEOUT_SECONDS:-10}
+      - WEBHOOK_RETRY_COUNT=${WEBHOOK_RETRY_COUNT:-3}
+      - WEBHOOK_RETRY_DELAY_SECONDS=${WEBHOOK_RETRY_DELAY_SECONDS:-5}
+      - WEBHOOK_USER_AGENT=${WEBHOOK_USER_AGENT:-ReportAgent-Webhook/1.0}
+      - WEBHOOK_PUBLIC_BASE_URL=${WEBHOOK_PUBLIC_BASE_URL:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/formatted:/app/storage/formatted
@@ -118,6 +129,17 @@ services:
       - ALERTS_ENABLED=${ALERTS_ENABLED:-true}
       - DOMAIN=${DOMAIN:-localhost}
       - GRAFANA_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
+      - WEBHOOK_ENABLED=${WEBHOOK_ENABLED:-true}
+      - WEBHOOK_TIMEOUT_SECONDS=${WEBHOOK_TIMEOUT_SECONDS:-10}
+      - WEBHOOK_RETRY_COUNT=${WEBHOOK_RETRY_COUNT:-3}
+      - WEBHOOK_RETRY_DELAY_SECONDS=${WEBHOOK_RETRY_DELAY_SECONDS:-5}
+      - WEBHOOK_USER_AGENT=${WEBHOOK_USER_AGENT:-ReportAgent-Webhook/1.0}
+      - WEBHOOK_PUBLIC_BASE_URL=${WEBHOOK_PUBLIC_BASE_URL:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/formatted:/app/storage/formatted

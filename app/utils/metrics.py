@@ -123,6 +123,25 @@ self_healing_fixes_applied_total = Counter(
     ["source"],
 )
 
+webhook_attempts_total = Counter(
+    "webhook_attempts_total",
+    "Webhook delivery attempts",
+    ["event", "success"],
+)
+
+webhook_duration_seconds = Histogram(
+    "webhook_duration_seconds",
+    "Webhook HTTP delivery duration in seconds",
+    ["event"],
+    buckets=AGENT_DURATION_BUCKETS,
+)
+
+webhook_retries_total = Counter(
+    "webhook_retries_total",
+    "Webhook delivery retries",
+    ["event"],
+)
+
 _background_started = False
 _background_lock = threading.Lock()
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -287,6 +306,26 @@ def record_self_healing_attempt(
             "duration_seconds": round(duration_seconds, 4),
         },
     )
+
+
+def record_webhook_attempt(event: str, success: bool, duration_seconds: float) -> None:
+    """Record webhook delivery attempt metrics."""
+    success_label = "true" if success else "false"
+    webhook_attempts_total.labels(event=event, success=success_label).inc()
+    webhook_duration_seconds.labels(event=event).observe(duration_seconds)
+    log_metric_event(
+        "webhook_attempt",
+        {
+            "event": event,
+            "success": success,
+            "duration_seconds": round(duration_seconds, 4),
+        },
+    )
+
+
+def record_webhook_retry(event: str) -> None:
+    """Increment webhook retry counter."""
+    webhook_retries_total.labels(event=event).inc()
 
 
 def record_voice_transcription(success: bool) -> None:
