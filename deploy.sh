@@ -95,7 +95,7 @@ mkdir -p \
 
 chmod 777 chroma_data 2>/dev/null || true
 
-chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh \
+chmod +x scripts/healthcheck_celery.sh scripts/healthcheck_celery_beat.sh scripts/pull-images.sh scripts/preflight-prod.sh \
   scripts/setup-grafana.sh scripts/render-alertmanager.sh scripts/test_alerts.py \
   scripts/diagnose_observability.sh scripts/check-nginx-grafana.sh 2>/dev/null || true
 

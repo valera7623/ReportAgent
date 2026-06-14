@@ -182,6 +182,7 @@ services:
       - ./app/data:/app/app/data
       - ./chroma_data:/app/chroma_data
       - ./logs:/app/logs
+      - ./scripts/healthcheck_celery_beat.sh:/usr/local/bin/healthcheck_celery_beat.sh:ro
     networks:
       - internal
     depends_on:
@@ -189,6 +190,12 @@ services:
         condition: service_healthy
       celery_worker:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/bin/healthcheck_celery_beat.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   prometheus:
     image: prom/prometheus:latest

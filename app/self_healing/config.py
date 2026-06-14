@@ -20,7 +20,7 @@ MAX_RETRY_ATTEMPTS = int(os.getenv("MAX_RETRY_ATTEMPTS", "2"))
 SELF_HEALING_LOG_LEVEL = os.getenv("SELF_HEALING_LOG_LEVEL", "info").lower()
 FIX_ATTEMPT_TIMEOUT_SECONDS = int(os.getenv("FIX_ATTEMPT_TIMEOUT_SECONDS", "30"))
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
-MIN_RAM_BYTES = 1 * 1024 * 1024 * 1024  # 1 GB
+MIN_RAM_BYTES = int(os.getenv("SELF_HEALING_MIN_RAM_MB", "512")) * 1024 * 1024
 
 # Agents where automatic code fixes are allowed (non-destructive).
 SAFE_FIX_AGENTS = frozenset(
@@ -67,8 +67,9 @@ def is_self_healing_enabled() -> bool:
     ram = _available_ram_bytes()
     if ram is not None and ram < MIN_RAM_BYTES:
         logger.warning(
-            "Self-healing disabled: available RAM %.0f MB < 1 GB",
+            "Self-healing disabled: available RAM %.0f MB < %d MB",
             ram / (1024 * 1024),
+            MIN_RAM_BYTES // (1024 * 1024),
         )
         return False
 
