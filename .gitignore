@@ -29,6 +29,10 @@ storage/uploads/*
 logs/*
 !logs/.gitkeep
 
+# ChromaDB self-healing knowledge base (runtime)
+chroma_data/
+chroma_data_test/
+
 # Google service account (never commit)
 secrets/*
 !secrets/.gitkeep

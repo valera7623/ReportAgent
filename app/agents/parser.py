@@ -14,6 +14,8 @@ import httpx
 import pandas as pd
 
 from app.models.schemas import AgentError
+from app.self_healing.healing_decorator import with_self_healing
+from app.self_healing.fix_executor import get_active_fix_context
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
 
@@ -58,8 +60,12 @@ def _read_uploaded_file(file_path: Path) -> pd.DataFrame:
         )
 
     try:
+        fix_ctx = get_active_fix_context()
         if suffix == ".csv":
             return pd.read_csv(file_path)
+        engine = fix_ctx.get("excel_engine")
+        if engine:
+            return pd.read_excel(file_path, engine=engine)
         return pd.read_excel(file_path)
     except Exception as exc:
         raise AgentError(
@@ -174,6 +180,7 @@ def save_upload(file_content: bytes, original_filename: str) -> Path:
     return dest
 
 
+@with_self_healing("parser")
 @track_agent_metrics("parser")
 def run_parser(
     task_id: str,

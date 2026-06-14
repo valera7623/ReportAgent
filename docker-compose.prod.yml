@@ -31,12 +31,24 @@ services:
       - NOTION_DATABASE_ID=${NOTION_DATABASE_ID:-}
       - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON:-/app/secrets/google-sa.json}
       - GOOGLE_SLIDES_TEMPLATE_ID=${GOOGLE_SLIDES_TEMPLATE_ID:-}
+      - SELF_HEALING_ENABLED=${SELF_HEALING_ENABLED:-true}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.75}
+      - MAX_RETRY_ATTEMPTS=${MAX_RETRY_ATTEMPTS:-2}
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - ALERTS_ENABLED=${ALERTS_ENABLED:-true}
+      - DOMAIN=${DOMAIN:-localhost}
+      - GRAFANA_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/formatted:/app/storage/formatted
       - ./storage/uploads:/app/storage/uploads
       - ./logs:/app/logs
       - ./app/data:/app/app/data
+      - ./chroma_data:/app/chroma_data
       - ./secrets:/app/secrets:ro
     networks:
       - traefik_network
@@ -96,12 +108,23 @@ services:
       - NOTION_DATABASE_ID=${NOTION_DATABASE_ID:-}
       - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON:-/app/secrets/google-sa.json}
       - GOOGLE_SLIDES_TEMPLATE_ID=${GOOGLE_SLIDES_TEMPLATE_ID:-}
+      - SELF_HEALING_ENABLED=${SELF_HEALING_ENABLED:-true}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.75}
+      - MAX_RETRY_ATTEMPTS=${MAX_RETRY_ATTEMPTS:-2}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - ALERTS_ENABLED=${ALERTS_ENABLED:-true}
+      - DOMAIN=${DOMAIN:-localhost}
+      - GRAFANA_DOMAIN=${GRAFANA_DOMAIN:-grafana.localhost}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/formatted:/app/storage/formatted
       - ./storage/uploads:/app/storage/uploads
       - ./logs:/app/logs
       - ./app/data:/app/app/data
+      - ./chroma_data:/app/chroma_data
       - ./secrets:/app/secrets:ro
       - ./scripts/healthcheck_celery.sh:/usr/local/bin/healthcheck_celery.sh:ro
     networks:
@@ -148,8 +171,16 @@ services:
     environment:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - DATABASE_URL=sqlite:////app/app/data/users.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - SELF_HEALING_ENABLED=${SELF_HEALING_ENABLED:-true}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.75}
     volumes:
       - ./app/data:/app/app/data
+      - ./chroma_data:/app/chroma_data
       - ./logs:/app/logs
     networks:
       - internal

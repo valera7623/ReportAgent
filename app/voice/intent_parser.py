@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from app.voice.config import LLM_MODEL
+from app.self_healing.healing_decorator import with_self_healing
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
 
@@ -68,6 +69,7 @@ def _normalize_email_value(email: str | None) -> str | None:
     return match.group(0) if match else normalized if "@" in normalized else email
 
 
+@with_self_healing("intent_parser")
 @track_agent_metrics("intent_parser")
 def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Parse user intent from transcript using GPT JSON mode."""

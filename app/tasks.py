@@ -22,8 +22,6 @@ from app.utils.logger import get_logger
 from app.utils.metrics import report_generation_duration_seconds
 
 logger = get_logger("tasks", "log_tasks.log")
-
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CELERY_QUEUE_KEY = os.getenv("CELERY_QUEUE_NAME", "celery")
 METRICS_QUEUE_REDIS_KEY = "metrics:celery_queue_length"
 
@@ -288,11 +286,113 @@ def update_celery_queue_length() -> dict[str, int]:
     return {"queue_length": length}
 
 
+@celery_app.task(name="tasks.learn_from_failures")
+def learn_from_failures() -> dict[str, Any]:
+    """
+    Hourly task: analyze stale failed fixes and generate LLM candidate solutions.
+
+    Requires OPENAI_API_KEY — otherwise skips LLM generation.
+    """
+    import json
+    import uuid
+
+    from app.self_healing.config import is_self_healing_enabled
+    from app.self_healing.vector_store import get_knowledge_base
+    from app.voice.config import LLM_MODEL
+
+    if not is_self_healing_enabled():
+        return {"status": "skipped", "reason": "self_healing_disabled"}
+
+    kb = get_knowledge_base()
+    if kb is None:
+        return {"status": "skipped", "reason": "kb_unavailable"}
+
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        logger.info("learn_from_failures: OPENAI_API_KEY not set — skipping LLM generation")
+        return {"status": "skipped", "reason": "no_openai_key"}
+
+    stale = kb.find_stale_failures(min_age_days=7)
+    generated = 0
+
+    for record in stale[:10]:
+        try:
+            from app.voice.openai_client import create_openai_client
+
+            client = create_openai_client()
+            prompt = (
+                "Вот ошибка и неудачная попытка исправления в data pipeline. "
+                "Предложи лучшее техническое решение (без изменения бизнес-логики).\n\n"
+                f"Agent: {record.get('agent_name')}\n"
+                f"Error: {record.get('error_text', '')[:800]}\n"
+                f"Previous prompt: {record.get('solution_prompt', '')}\n"
+                f"Previous code: {record.get('solution_code', '')}\n"
+                f"Context: {json.dumps(record.get('context') or {}, ensure_ascii=False)[:500]}\n\n"
+                'Respond with JSON: {"solution_prompt": "...", "solution_code": "{\\"action\\": ...}"}'
+            )
+            response = client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a DevOps engineer suggesting safe retry fixes for Python data agents. "
+                            "JSON only, no eval."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=600,
+            )
+            content = (response.choices[0].message.content or "").strip()
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            suggestion = json.loads(content)
+
+            kb.add_error(
+                {
+                    "id": str(uuid.uuid4()),
+                    "error_text": record.get("error_text", ""),
+                    "error_type": record.get("error_type", "unknown"),
+                    "agent_name": record.get("agent_name", "unknown"),
+                    "stack_trace": record.get("stack_trace", ""),
+                    "solution_prompt": suggestion.get("solution_prompt", ""),
+                    "solution_code": suggestion.get("solution_code", ""),
+                    "was_successful": False,
+                    "success_count": 0,
+                    "fail_count": 0,
+                    "context": {
+                        **(record.get("context") or {}),
+                        "source": "learn_from_failures",
+                        "parent_id": record.get("id"),
+                    },
+                }
+            )
+            generated += 1
+            logger.info(
+                "Generated candidate fix for stale error %s (agent=%s)",
+                record.get("id"),
+                record.get("agent_name"),
+            )
+        except Exception as exc:
+            logger.warning("learn_from_failures failed for %s: %s", record.get("id"), exc)
+
+    return {"status": "ok", "stale_count": len(stale), "generated": generated}
+
+
 @celery_app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs) -> None:
-    """Register Celery Beat schedule for queue length monitoring."""
+    """Register Celery Beat schedule for queue length monitoring and self-healing learning."""
     sender.add_periodic_task(
         30.0,
         update_celery_queue_length.s(),
         name="update-celery-queue-length-every-30s",
+    )
+    sender.add_periodic_task(
+        3600.0,
+        learn_from_failures.s(),
+        name="learn-from-failures-every-hour",
     )

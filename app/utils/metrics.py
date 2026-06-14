@@ -99,6 +99,30 @@ google_slides_api_errors_total = Counter(
     "Google Slides API errors during report export",
 )
 
+self_healing_attempts_total = Counter(
+    "self_healing_attempts_total",
+    "Self-healing fix attempts",
+    ["agent_name", "success"],
+)
+
+self_healing_duration_seconds = Histogram(
+    "self_healing_duration_seconds",
+    "Self-healing attempt duration in seconds",
+    ["agent_name"],
+    buckets=AGENT_DURATION_BUCKETS,
+)
+
+knowledge_base_size = Gauge(
+    "knowledge_base_size",
+    "Number of records in ChromaDB error knowledge base",
+)
+
+self_healing_fixes_applied_total = Counter(
+    "self_healing_fixes_applied_total",
+    "Self-healing fixes applied",
+    ["source"],
+)
+
 _background_started = False
 _background_lock = threading.Lock()
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -150,11 +174,26 @@ def refresh_database_size() -> None:
         logger.warning("Failed to refresh database_size_bytes: %s", exc)
 
 
+def refresh_knowledge_base_size() -> None:
+    """Update knowledge_base_size gauge from ChromaDB."""
+    try:
+        from app.self_healing.vector_store import get_knowledge_base
+
+        kb = get_knowledge_base()
+        if kb is not None:
+            knowledge_base_size.set(kb.get_stats().get("total_fixes", 0))
+        else:
+            knowledge_base_size.set(0)
+    except Exception as exc:
+        logger.warning("Failed to refresh knowledge_base_size: %s", exc)
+
+
 def refresh_all_gauges() -> None:
     """Refresh all gauges (called on /metrics scrape)."""
     refresh_celery_queue_length()
     refresh_active_users()
     refresh_database_size()
+    refresh_knowledge_base_size()
 
 
 def _background_loop(interval: float, func: Callable[[], None], name: str) -> None:
@@ -224,6 +263,28 @@ def record_format_request(
             "output_format": output_format,
             "status": status,
             "duration_seconds": round(duration_seconds, 4) if duration_seconds else None,
+        },
+    )
+
+
+def record_self_healing_attempt(
+    agent_name: str,
+    success: bool,
+    duration_seconds: float,
+) -> None:
+    """Record self-healing attempt metrics."""
+    success_label = "true" if success else "false"
+    self_healing_attempts_total.labels(
+        agent_name=agent_name,
+        success=success_label,
+    ).inc()
+    self_healing_duration_seconds.labels(agent_name=agent_name).observe(duration_seconds)
+    log_metric_event(
+        "self_healing_attempt",
+        {
+            "agent_name": agent_name,
+            "success": success,
+            "duration_seconds": round(duration_seconds, 4),
         },
     )
 

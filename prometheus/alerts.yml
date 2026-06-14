@@ -91,3 +91,19 @@ groups:
           summary: "SQLite database exceeds 1 GB"
           description: "users.db size is {{ $value | humanize1024 }}B (threshold: 1 GB)."
           grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"
+
+      - alert: SelfHealingLowSuccessRate
+        expr: |
+          (
+            sum(rate(self_healing_attempts_total{success="true"}[1h]))
+            /
+            sum(rate(self_healing_attempts_total[1h]))
+          ) < 0.5
+          and sum(rate(self_healing_attempts_total[1h])) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Self-healing success rate below 50%"
+          description: "Less than half of self-healing attempts succeeded in the last hour."
+          grafana_url: "https://grafana.example.com/d/ReportAgent-Main/reportagent-main"

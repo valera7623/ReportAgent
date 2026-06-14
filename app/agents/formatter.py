@@ -29,6 +29,7 @@ from app.config.output_formats import (
     normalize_output_format,
 )
 from app.models.schemas import AgentError
+from app.self_healing.healing_decorator import with_self_healing
 from app.utils.logger import get_logger
 from app.utils.metrics import (
     google_slides_api_errors_total,
@@ -620,6 +621,7 @@ _FORMAT_HANDLERS: dict[str, Callable[..., FormatResult]] = {
 }
 
 
+@with_self_healing("formatter")
 @track_agent_metrics("formatter")
 def format_report(
     analysis_data: dict[str, Any],

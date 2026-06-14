@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd
 
 from app.models.schemas import AgentError
+from app.self_healing.healing_decorator import with_self_healing
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
 
@@ -168,6 +169,7 @@ def _save_line_trend(
     return True
 
 
+@with_self_healing("visualizer")
 @track_agent_metrics("visualizer")
 def run_visualizer(analyzed: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create up to 3 PNG charts and return paths."""

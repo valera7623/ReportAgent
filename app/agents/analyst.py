@@ -7,6 +7,8 @@ from typing import Any
 import pandas as pd
 
 from app.models.schemas import AgentError
+from app.self_healing.fix_executor import get_active_fix_context
+from app.self_healing.healing_decorator import with_self_healing
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
 
@@ -23,6 +25,7 @@ def _top_values(series: pd.Series, n: int = 3) -> list[dict[str, Any]]:
     return items
 
 
+@with_self_healing("analyst")
 @track_agent_metrics("analyst")
 def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Compute sums, averages, top values, and percentages."""
@@ -38,6 +41,13 @@ def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = Non
 
         numeric_cols: list[str] = parsed.get("numeric_columns") or []
         text_cols: list[str] = parsed.get("text_columns") or []
+
+        fix_ctx = get_active_fix_context()
+        column_remap = fix_ctx.get("_column_remap") or {}
+        if column_remap:
+            numeric_cols = [column_remap.get(c, c) for c in numeric_cols]
+            text_cols = [column_remap.get(c, c) for c in text_cols]
+            logger.info("Applied fuzzy column remap: %s", column_remap)
 
         numeric_summary: dict[str, dict[str, float | int]] = {}
         for col in numeric_cols:

@@ -341,6 +341,100 @@ python3 scripts/test_voice.py \
 
 Логи: `logs/log_voice.log`. История запросов: `history.request_type = 'voice'`.
 
+## Self-healing RAG (Step 5)
+
+Агенты автоматически учатся на ошибках: при падении ищут похожие случаи в ChromaDB, применяют известное исправление и сохраняют статистику.
+
+### Как это работает
+
+1. Агент падает → декоратор `@with_self_healing` извлекает сигнатуру ошибки.
+2. ChromaDB ищет похожие записи (локальные эмбеддинги `all-MiniLM-L6-v2`, без OpenAI).
+3. Если найдено решение с `was_successful=true` и `success_count > fail_count` → `FixExecutor` применяет технический фикс и повторяет вызов.
+4. Успех → `success_count++`, алерт в Telegram. Неудача → новая запись для ручного разбора + алерт.
+5. Раз в час Celery Beat (`learn_from_failures`) анализирует старые неудачи через GPT-4o-mini и создаёт кандидаты решений.
+
+### Быстрый старт
+
+```bash
+# .env (см. .env.example)
+SELF_HEALING_ENABLED=true
+CHROMA_PERSIST_DIR=./chroma_data
+ADMIN_API_KEY=...   # генерируется deploy.sh при первом деплое
+```
+
+```bash
+./deploy.sh   # создаёт chroma_data/, монтирует volume
+```
+
+При первом запуске загружаются **seed-фиксы** из `app/self_healing/seed_fixes.json` (10 типовых ошибок).
+
+### Ручное добавление фикса через API
+
+```bash
+ADMIN_KEY="ваш-admin-api-key"
+
+# Добавить кандидат-решение
+curl -X POST "https://ваш-домен/admin/self_healing/fixes" \
+  -H "X-Admin-Key: $ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "error_text": "KeyError revenue column not found",
+    "agent_name": "analyst",
+    "solution_prompt": "Fuzzy match revenue to nearest column",
+    "solution_code": "{\"action\": \"fuzzy_column_match\", \"params\": {\"_missing_column\": \"revenue\"}}"
+  }'
+
+# Подтвердить после проверки
+curl -X POST "https://ваш-домен/admin/self_healing/confirm/{fix_id}" \
+  -H "X-Admin-Key: $ADMIN_KEY"
+
+# Статистика
+curl "https://ваш-домен/admin/self_healing/stats" -H "X-Admin-Key: $ADMIN_KEY"
+```
+
+### Примеры seed-фиксов
+
+| Ошибка | Решение |
+|--------|---------|
+| `pandas.errors.ParserError: tokenizing` | `sep=';'`, `engine='python'` |
+| `KeyError: 'sales'` | fuzzy matching столбца |
+| `matplotlib: no display` | `matplotlib.use('Agg')` |
+| `openai.RateLimitError` | exponential backoff retry |
+| `UnicodeDecodeError` CSV | `encoding='latin-1'` |
+
+### Тестирование
+
+```bash
+python3 scripts/test_self_healing.py
+python3 scripts/test_self_healing.py --base-url https://ваш-домен --admin-key "$ADMIN_API_KEY"
+```
+
+### Метрики и алерты
+
+| Метрика | Назначение |
+|---------|------------|
+| `self_healing_attempts_total{agent_name,success}` | Попытки self-healing |
+| `self_healing_duration_seconds` | Время попытки |
+| `knowledge_base_size` | Записей в ChromaDB |
+| `self_healing_fixes_applied_total{source}` | auto / manual |
+
+Правило **SelfHealingLowSuccessRate** — success rate < 50% за час.
+
+### Безопасность
+
+- `solution_code` — только JSON action specs, **eval запрещён**
+- Авто-фиксы кода только для `parser`, `analyst`, `visualizer`, `intent_parser`, `formatter`
+- SMTP/отправка email — только prompt + алерт, без авто-патча
+- Self-healing отключается при RAM < 1 GB или падении ChromaDB
+
+### VPS с малым RAM
+
+```bash
+SELF_HEALING_ENABLED=false   # или OBSERVABILITY_HOST_METRICS=false + достаточно RAM
+```
+
+Логи: `logs/log_self_healing.json`. Периодическое обучение: **Celery Beat** (`celery_beat` контейнер), задача `learn_from_failures` каждый час.
+
 ## Monitoring with Prometheus & Grafana
 
 Полная видимость API, агентов, очереди Celery, голосовых запросов и ресурсов хоста.
@@ -408,6 +502,8 @@ curl -s https://ваш-домен/metrics | head -40
 | `voice_transcriptions_total` | Успех/фейл Whisper |
 | `active_users` | Активные пользователи (30 дней) |
 | `database_size_bytes` | Размер `users.db` |
+| `self_healing_attempts_total` | Попытки self-healing |
+| `knowledge_base_size` | Записей в базе знаний ChromaDB |
 
 ### Правила алертов
 

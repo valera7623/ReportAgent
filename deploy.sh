@@ -44,6 +44,12 @@ if [[ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]]; then
   echo "==> Generated GRAFANA_ADMIN_PASSWORD (add to .env): ${GRAFANA_ADMIN_PASSWORD}"
 fi
 
+if [[ -z "${ADMIN_API_KEY:-}" || "${ADMIN_API_KEY}" == "change-me-generate-on-deploy" ]]; then
+  ADMIN_API_KEY="$(openssl rand -hex 24)"
+  export ADMIN_API_KEY
+  echo "==> Generated ADMIN_API_KEY for self-healing admin API (add to .env): ${ADMIN_API_KEY}"
+fi
+
 GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}"
 if command -v htpasswd >/dev/null 2>&1; then
   export GRAFANA_BASICAUTH_USERS
@@ -82,9 +88,12 @@ if [[ "$OBSERVABILITY_HOST_METRICS" == "true" ]]; then
 fi
 
 mkdir -p \
-  app/data storage/pdfs storage/uploads logs traefik/acme \
+  app/data storage/pdfs storage/uploads storage/formatted logs traefik/acme \
+  chroma_data \
   prometheus alertmanager \
   grafana/provisioning/datasources grafana/provisioning/dashboards grafana/dashboards
+
+chmod 777 chroma_data 2>/dev/null || true
 
 chmod +x scripts/healthcheck_celery.sh scripts/pull-images.sh scripts/preflight-prod.sh \
   scripts/setup-grafana.sh scripts/render-alertmanager.sh scripts/test_alerts.py \

@@ -19,6 +19,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.models.schemas import AgentError
+from app.self_healing.healing_decorator import with_self_healing
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
 
@@ -227,6 +228,7 @@ def _send_email(to_email: str, pdf_path: Path, task_id: str) -> None:
         ) from exc
 
 
+@with_self_healing("sender")
 @track_agent_metrics("sender")
 def run_sender(visualized: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
     """Generate PDF and send it to the recipient."""

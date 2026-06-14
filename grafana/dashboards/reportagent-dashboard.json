@@ -215,6 +215,64 @@
       ],
       "title": "External API errors (Notion / Google Slides)",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1, "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
+      "id": 14,
+      "targets": [
+        {
+          "expr": "sum(rate(self_healing_attempts_total{success=\"true\"}[1h])) / sum(rate(self_healing_attempts_total[1h]))",
+          "legendFormat": "success rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Self-healing success rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
+      "id": 15,
+      "targets": [
+        {
+          "expr": "topk(5, sum by (agent_name) (increase(self_healing_attempts_total[24h])))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 5 self-healing errors by agent",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 62 },
+      "id": 16,
+      "targets": [
+        {
+          "expr": "knowledge_base_size",
+          "refId": "A"
+        }
+      ],
+      "title": "Knowledge base size (ChromaDB)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 6, "w": 16, "x": 8, "y": 62 },
+      "id": 17,
+      "targets": [
+        {
+          "expr": "sum by (source) (increase(self_healing_fixes_applied_total[24h]))",
+          "legendFormat": "{{source}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Fixes applied (auto vs manual)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

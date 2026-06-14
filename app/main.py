@@ -17,6 +17,7 @@ from app.db.database import get_usage_count, log_history, resolve_email_for_user
 from app.db.init_db import run_migrations
 from app.middleware.auth import APIKeyAuthMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
+from app.self_healing.init_kb import init_knowledge_base
 from app.utils.metrics import get_metrics_payload, start_background_gauge_updaters
 from app.utils.metrics_middleware import MetricsMiddleware
 from app.models.schemas import (
@@ -25,7 +26,7 @@ from app.models.schemas import (
     TaskState,
     TaskStatusResponse,
 )
-from app.routers import keys, preferences, voice
+from app.routers import admin_self_healing, keys, preferences, voice
 from app.tasks import generate_report
 from app.voice.config import voice_available
 from app.voice.redis_store import get_voice_status, load_partial_state
@@ -42,6 +43,10 @@ async def lifespan(_app: FastAPI):
     except Exception as exc:
         logger.exception("Database migration failed on startup: %s", exc)
         raise
+    try:
+        init_knowledge_base()
+    except Exception as exc:
+        logger.warning("Self-healing knowledge base init failed (non-fatal): %s", exc)
     start_background_gauge_updaters()
     yield
 
@@ -54,7 +59,7 @@ app = FastAPI(
         "Receive by email or download via API. "
         "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
     ),
-    version="1.5.0",
+    version="1.6.0",
     lifespan=lifespan,
 )
 
@@ -65,6 +70,7 @@ app.add_middleware(APIKeyAuthMiddleware)
 app.include_router(keys.router)
 app.include_router(preferences.router)
 app.include_router(voice.router)
+app.include_router(admin_self_healing.router)
 
 
 def _download_url_for_format(task_id: str, output_format: str) -> str:
