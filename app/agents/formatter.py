@@ -42,6 +42,8 @@ logger = get_logger("agent_formatter", "log_formatter.log")
 FORMATTED_DIR = Path(os.getenv("FORMATTED_DIR", "/app/storage/formatted"))
 NOTION_TOKEN = os.getenv("NOTION_INTEGRATION_TOKEN", "").strip()
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "").strip()
+NOTION_DATA_SOURCE_ID = os.getenv("NOTION_DATA_SOURCE_ID", "").strip()
+NOTION_API_VERSION = os.getenv("NOTION_API_VERSION", "2025-09-03")
 GOOGLE_SA_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "./secrets/google-sa.json").strip()
 GOOGLE_SLIDES_TEMPLATE_ID = os.getenv("GOOGLE_SLIDES_TEMPLATE_ID", "").strip()
 API_TIMEOUT = 30
@@ -309,35 +311,99 @@ def to_pptx(analysis_data: dict[str, Any], charts: list[str], user_preferences: 
 
 
 @_with_retry
-def _notion_create_page(title: str, blocks: list[dict[str, Any]]) -> str:
+def _notion_client():
     from notion_client import Client
 
+    return Client(
+        auth=NOTION_TOKEN,
+        timeout_ms=API_TIMEOUT * 1000,
+        notion_version=NOTION_API_VERSION,
+    )
+
+
+def _notion_title_property(properties: dict[str, Any]) -> str:
+    for name, meta in properties.items():
+        if isinstance(meta, dict) and meta.get("type") == "title":
+            return name
+    return "Name"
+
+
+def _resolve_notion_parent(client) -> tuple[dict[str, str], str]:
+    """
+    Resolve Notion parent for pages.create.
+
+    Notion API 2025-09-03+: databases may have multiple data sources;
+    use data_source_id instead of database_id.
+    """
+    if NOTION_DATA_SOURCE_ID:
+        ds = client.request(
+            path=f"data_sources/{NOTION_DATA_SOURCE_ID}",
+            method="GET",
+        )
+        title_prop = _notion_title_property(ds.get("properties") or {})
+        return (
+            {"type": "data_source_id", "data_source_id": NOTION_DATA_SOURCE_ID},
+            title_prop,
+        )
+
+    db = client.databases.retrieve(database_id=NOTION_DATABASE_ID)
+    data_sources = db.get("data_sources") or []
+
+    if data_sources:
+        ds_id = data_sources[0]["id"]
+        ds = client.request(path=f"data_sources/{ds_id}", method="GET")
+        title_prop = _notion_title_property(ds.get("properties") or {})
+        logger.info(
+            "Notion database has %d data source(s); using %s (title property=%s)",
+            len(data_sources),
+            ds_id,
+            title_prop,
+        )
+        return ({"type": "data_source_id", "data_source_id": ds_id}, title_prop)
+
+    # Legacy single-source database
+    title_prop = _notion_title_property(db.get("properties") or {})
+    return ({"database_id": NOTION_DATABASE_ID}, title_prop)
+
+
+@_with_retry
+def _notion_create_page(title: str, blocks: list[dict[str, Any]]) -> str:
     if not NOTION_TOKEN:
         raise AgentError(
             "NOTION_INTEGRATION_TOKEN is not configured. Set it in .env or choose another output_format.",
             agent="formatter",
         )
-    if not NOTION_DATABASE_ID:
+    if not NOTION_DATABASE_ID and not NOTION_DATA_SOURCE_ID:
         raise AgentError(
             "NOTION_DATABASE_ID is not configured. Set it in .env or choose another output_format.",
             agent="formatter",
         )
 
-    client = Client(auth=NOTION_TOKEN, timeout_ms=API_TIMEOUT * 1000)
+    client = _notion_client()
     try:
+        parent, title_prop = _resolve_notion_parent(client)
         response = client.pages.create(
-            parent={"database_id": NOTION_DATABASE_ID},
+            parent=parent,
             properties={
-                "Name": {"title": [{"text": {"content": title[:2000]}}]},
+                title_prop: {"title": [{"text": {"content": title[:2000]}}]},
             },
             children=blocks[:100],
         )
         page_id = response["id"].replace("-", "")
         return f"https://www.notion.so/{page_id}"
+    except AgentError:
+        raise
     except Exception as exc:
         notion_api_errors_total.inc()
         logger.exception("Notion API error: %s", exc)
-        raise AgentError(f"Notion API error: {exc}", agent="formatter") from exc
+        msg = str(exc)
+        if "multiple data sources" in msg.lower():
+            msg += (
+                " Set NOTION_DATA_SOURCE_ID in .env "
+                "(Notion → database settings → Manage data sources → Copy data source ID). "
+                "See https://developers.notion.com/guides/get-started/upgrade-guide-2025-09-03"
+            )
+        raise AgentError(f"Notion API error: {msg}", agent="formatter") from exc
 
 
 def to_notion(analysis_data: dict[str, Any], charts: list[str], user_preferences: dict[str, Any]) -> FormatResult:
