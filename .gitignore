@@ -22,10 +22,16 @@ app/data/*.db-*
 # Storage & logs (runtime data)
 storage/pdfs/*
 !storage/pdfs/.gitkeep
+storage/formatted/*
+!storage/formatted/.gitkeep
 storage/uploads/*
 !storage/uploads/.gitkeep
 logs/*
 !logs/.gitkeep
+
+# Google service account (never commit)
+secrets/*
+!secrets/.gitkeep
 
 # Traefik ACME
 traefik/acme/acme.json

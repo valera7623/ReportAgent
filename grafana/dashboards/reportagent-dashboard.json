@@ -166,6 +166,55 @@
       ],
       "title": "Top 10 slowest agents (p95)",
       "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 38 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (output_format, status) (rate(report_format_requests_total[5m]))",
+          "legendFormat": "{{output_format}} ({{status}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Форматы вывода (requests/sec)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (output_format, le) (rate(report_format_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{output_format}} p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Format generation duration p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
+      "id": 13,
+      "targets": [
+        {
+          "expr": "increase(notion_api_errors_total[1h])",
+          "legendFormat": "Notion errors",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(google_slides_api_errors_total[1h])",
+          "legendFormat": "Google Slides errors",
+          "refId": "B"
+        }
+      ],
+      "title": "External API errors (Notion / Google Slides)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

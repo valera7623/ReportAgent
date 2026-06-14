@@ -46,8 +46,18 @@ class GenerateReportResponse(BaseModel):
     status: str = "queued"
     message: str
     download_url: str
+    output_format: str = "pdf"
+    external_url: str | None = None
     user_id: str | None = None
     usage_count: int = 0
+
+
+class OutputFormatPreferenceRequest(BaseModel):
+    default_output_format: str = Field(
+        ...,
+        description="Default report output format",
+        examples=["pdf", "excel", "pptx", "notion", "google_slides"],
+    )
 
 
 class TaskStatusResponse(BaseModel):

@@ -12,6 +12,7 @@ from app.db.database import (
     reset_user_preferences,
     update_user_preferences,
 )
+from app.models.schemas import OutputFormatPreferenceRequest
 from app.utils.logger import get_logger
 
 logger = get_logger("preferences_router", "log_api.log")
@@ -25,6 +26,7 @@ class PreferencesResponse(BaseModel):
     default_email: str | None = None
     company_logo_url: str | None = None
     timezone: str
+    default_output_format: str = "pdf"
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -34,6 +36,7 @@ class PreferencesUpdateRequest(BaseModel):
     default_email: EmailStr | None = None
     company_logo_url: str | None = None
     timezone: str | None = None
+    default_output_format: str | None = None
     extra: dict[str, Any] | None = None
 
 
@@ -69,6 +72,29 @@ async def update_preferences(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info("Updated preferences for user %s", user_id)
+    return PreferencesResponse(**prefs)
+
+
+@router.post("/output_format", response_model=PreferencesResponse)
+async def set_output_format(
+    request: Request,
+    body: OutputFormatPreferenceRequest,
+) -> PreferencesResponse:
+    """Set default report output format for the authenticated user."""
+    user_id = _require_user_id(request)
+    try:
+        prefs = update_user_preferences(
+            user_id,
+            {"default_output_format": body.default_output_format},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    logger.info(
+        "Set default_output_format=%s for user %s",
+        body.default_output_format,
+        user_id,
+    )
     return PreferencesResponse(**prefs)
 
 

@@ -29,10 +29,11 @@ def get_user_preferences(api_key: str | None) -> dict[str, Any]:
         return default_preferences()
 
     logger.info(
-        "Loaded preferences for key %s (chart=%s, theme=%s)",
+        "Loaded preferences for key %s (chart=%s, theme=%s, format=%s)",
         mask_api_key(api_key),
         prefs.get("preferred_chart_type"),
         prefs.get("theme"),
+        prefs.get("default_output_format"),
     )
     return prefs
 

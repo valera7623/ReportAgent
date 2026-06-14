@@ -22,6 +22,13 @@ logger = get_logger("voice_router", "log_voice.log")
 router = APIRouter(prefix="/voice", tags=["Voice"])
 
 
+def _voice_download_url(task_id: str, intent: dict) -> str:
+    fmt = intent.get("output_format") or "pdf"
+    if fmt == "pdf":
+        return f"/tasks/{task_id}/pdf"
+    return f"/tasks/{task_id}/export"
+
+
 def _require_voice() -> None:
     if not voice_enabled():
         raise HTTPException(status_code=501, detail="Voice input is disabled (VOICE_ENABLED=false)")
@@ -161,7 +168,7 @@ async def voice_generate_report(
             message="Voice request accepted. Report generation started.",
             transcript=result.transcript,
             intent=result.intent,
-            download_url=f"/tasks/{celery_task.id}/pdf",
+            download_url=_voice_download_url(celery_task.id, result.intent),
             user_id=user_id,
             usage_count=usage_count,
         )
@@ -252,7 +259,7 @@ async def voice_clarify(request: Request, body: VoiceClarifyRequest) -> VoiceCla
             task_id=celery_task.id,
             status="queued",
             message="Clarification accepted. Report generation started.",
-            download_url=f"/tasks/{celery_task.id}/pdf",
+            download_url=_voice_download_url(celery_task.id, result.intent),
         )
 
     except Exception as exc:

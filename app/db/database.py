@@ -18,9 +18,18 @@ _logger = logging.getLogger("database")
 DEFAULT_SQLITE_URL = "sqlite:///./app/data/users.db"
 
 DEFAULT_CHART_TYPE = os.getenv("DEFAULT_PREFERRED_CHART_TYPE", "bar")
+DEFAULT_OUTPUT_FORMAT = os.getenv("DEFAULT_OUTPUT_FORMAT", "pdf").strip().lower()
 
 VALID_CHART_TYPES = frozenset({"bar", "line", "pie"})
 VALID_THEMES = frozenset({"light", "dark"})
+VALID_OUTPUT_FORMATS = frozenset(
+    fmt.strip().lower()
+    for fmt in os.getenv(
+        "ALLOWED_OUTPUT_FORMATS",
+        "pdf,excel,pptx,notion,google_slides",
+    ).split(",")
+    if fmt.strip()
+)
 
 
 class UserRow(TypedDict):
@@ -49,6 +58,7 @@ def default_preferences() -> dict[str, Any]:
         "default_email": None,
         "company_logo_url": None,
         "timezone": "UTC",
+        "default_output_format": DEFAULT_OUTPUT_FORMAT,
         "extra": {},
     }
 
@@ -124,6 +134,11 @@ def _parse_preferences_row(row: sqlite3.Row | None) -> dict[str, Any]:
         "default_email": row["default_email"],
         "company_logo_url": row["company_logo_url"],
         "timezone": row["timezone"] or defaults["timezone"],
+        "default_output_format": (
+            row["default_output_format"]
+            if "default_output_format" in row.keys() and row["default_output_format"]
+            else defaults["default_output_format"]
+        ),
         "extra": extra if isinstance(extra, dict) else {},
     }
 
@@ -206,6 +221,7 @@ def update_user_preferences(user_id: str, updates: dict[str, Any]) -> dict[str, 
         "default_email",
         "company_logo_url",
         "timezone",
+        "default_output_format",
         "extra",
     }
     filtered = {k: v for k, v in updates.items() if k in allowed and v is not None}
@@ -219,6 +235,14 @@ def update_user_preferences(user_id: str, updates: dict[str, Any]) -> dict[str, 
     if "theme" in filtered:
         if filtered["theme"] not in VALID_THEMES:
             raise ValueError(f"theme must be one of: {', '.join(sorted(VALID_THEMES))}")
+
+    if "default_output_format" in filtered:
+        fmt = str(filtered["default_output_format"]).strip().lower()
+        if fmt not in VALID_OUTPUT_FORMATS:
+            raise ValueError(
+                f"default_output_format must be one of: {', '.join(sorted(VALID_OUTPUT_FORMATS))}"
+            )
+        filtered["default_output_format"] = fmt
 
     if "extra" in filtered and not isinstance(filtered["extra"], dict):
         raise ValueError("extra must be a JSON object")
@@ -267,10 +291,11 @@ def reset_user_preferences(user_id: str) -> dict[str, Any]:
                 default_email = NULL,
                 company_logo_url = NULL,
                 timezone = 'UTC',
+                default_output_format = ?,
                 extra = '{}'
             WHERE user_id = ?
             """,
-            (DEFAULT_CHART_TYPE, user_id),
+            (DEFAULT_CHART_TYPE, DEFAULT_OUTPUT_FORMAT, user_id),
         )
     return get_user_preferences(user_id)
 
@@ -306,25 +331,36 @@ def log_history(
     request_summary: str,
     task_id: str | None = None,
     request_type: str = "api",
+    output_format: str | None = None,
 ) -> None:
     summary = request_summary[:100] if request_summary else ""
+    fmt = (output_format or DEFAULT_OUTPUT_FORMAT).strip().lower()
     with get_connection() as conn:
         try:
             conn.execute(
                 """
-                INSERT INTO history (user_id, task_id, request_summary, request_type)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO history (user_id, task_id, request_summary, request_type, output_format)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (user_id, task_id, summary, request_type),
+                (user_id, task_id, summary, request_type, fmt),
             )
         except sqlite3.OperationalError:
-            conn.execute(
-                """
-                INSERT INTO history (user_id, task_id, request_summary)
-                VALUES (?, ?, ?)
-                """,
-                (user_id, task_id, summary),
-            )
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO history (user_id, task_id, request_summary, request_type)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (user_id, task_id, summary, request_type),
+                )
+            except sqlite3.OperationalError:
+                conn.execute(
+                    """
+                    INSERT INTO history (user_id, task_id, request_summary)
+                    VALUES (?, ?, ?)
+                    """,
+                    (user_id, task_id, summary),
+                )
 
 
 def resolve_email_for_user(

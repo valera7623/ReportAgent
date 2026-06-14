@@ -1,6 +1,8 @@
 # ReportAgent
 
-Micro-SaaS for generating PDF reports with charts from CSV/Excel uploads or public Google Sheets. Reports are delivered by email via SMTP.
+Micro-SaaS for generating reports (PDF, Excel, PowerPoint, Notion, Google Slides) with charts from CSV/Excel uploads or public Google Sheets.
+
+**v1.5** — multi-format output (Excel, PPTX, Notion, Google Slides), format preferences, voice format detection.
 
 **v1.4** — Prometheus + Grafana observability, Telegram alerts, agent metrics.
 
@@ -11,7 +13,7 @@ Micro-SaaS for generating PDF reports with charts from CSV/Excel uploads or publ
 ```
 Client → Traefik / nginx (TLS) → FastAPI → Celery → Redis
                          ↓              ↓
-                    Voice (Whisper   context_loader → parser → analyst → visualizer → sender
+                    Voice (Whisper   context_loader → parser → analyst → visualizer → formatter → sender (PDF)
                      + GPT intent)         ↓
                                       SQLite (users.db)
 ```
@@ -121,6 +123,125 @@ curl -X DELETE https://ваш-домен/api/preferences -H "X-API-Key: KEY"
 | `default_email`        | email                 | Email по умолчанию, если не указан в запросе |
 | `company_logo_url`     | URL                   | Логотип в PDF (если доступен по URL)        |
 | `timezone`             | IANA, напр. `UTC`     | Метаданные (расширяемо)                     |
+| `default_output_format`| `pdf`, `excel`, `pptx`, `notion`, `google_slides` | Формат отчёта по умолчанию |
+
+## Output formats (Step 4)
+
+Поддерживаемые форматы: `pdf`, `excel`, `pptx`, `notion`, `google_slides` (настраивается через `ALLOWED_OUTPUT_FORMATS`).
+
+### Переменные окружения
+
+| Переменная | Описание |
+|------------|----------|
+| `DEFAULT_OUTPUT_FORMAT` | Формат по умолчанию (`pdf`) |
+| `ALLOWED_OUTPUT_FORMATS` | Список через запятую |
+| `NOTION_INTEGRATION_TOKEN` | Internal Integration Token Notion |
+| `NOTION_DATABASE_ID` | ID базы для сохранения отчётов |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Путь к JSON ключу сервисного аккаунта |
+| `GOOGLE_SLIDES_TEMPLATE_ID` | ID шаблона презентации Google Slides |
+
+### Установить формат по умолчанию
+
+```bash
+curl -X POST https://ваш-домен/api/preferences/output_format \
+  -H "X-API-Key: KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"default_output_format": "excel"}'
+```
+
+### Примеры curl
+
+**PDF (по умолчанию, обратная совместимость):**
+
+```bash
+curl -X POST https://ваш-домен/generate_report \
+  -H "X-API-Key: KEY" \
+  -F "file=@sample_sales.csv"
+# → download_url: /tasks/{id}/pdf
+```
+
+**Excel:**
+
+```bash
+curl -X POST https://ваш-домен/generate_report \
+  -H "X-API-Key: KEY" \
+  -F "file=@sample_sales.csv" \
+  -F "output_format=excel"
+# → download_url: /tasks/{id}/export
+```
+
+**PowerPoint:**
+
+```bash
+curl -X POST https://ваш-домен/generate_report \
+  -H "X-API-Key: KEY" \
+  -F "file=@sample_sales.csv" \
+  -F "output_format=pptx"
+```
+
+**Notion** (требует `NOTION_INTEGRATION_TOKEN` + `NOTION_DATABASE_ID`):
+
+```bash
+curl -X POST https://ваш-домен/generate_report \
+  -H "X-API-Key: KEY" \
+  -F "sheets_url=https://docs.google.com/spreadsheets/d/..." \
+  -F "output_format=notion"
+# → GET /tasks/{id}/export редиректит на страницу Notion
+```
+
+**Google Slides** (требует `secrets/google-sa.json` + `GOOGLE_SLIDES_TEMPLATE_ID`):
+
+```bash
+curl -X POST https://ваш-домен/generate_report \
+  -H "X-API-Key: KEY" \
+  -F "file=@sample_sales.csv" \
+  -F "output_format=google_slides"
+```
+
+### Скачивание результата
+
+| Формат | Эндпоинт |
+|--------|----------|
+| PDF | `GET /tasks/{task_id}/pdf` (legacy, работает как раньше) |
+| excel, pptx | `GET /tasks/{task_id}/export` |
+| notion, google_slides | `GET /tasks/{task_id}/export` → redirect 302 |
+
+### Настройка Notion
+
+1. Создайте интеграцию: https://www.notion.so/my-integrations
+2. Скопируйте **Internal Integration Token** → `NOTION_INTEGRATION_TOKEN`
+3. Создайте базу данных в Notion, подключите интеграцию (Share → Invite)
+4. Получите `database_id` из URL или через скрипт:
+
+```bash
+NOTION_INTEGRATION_TOKEN=secret_... python3 scripts/setup_notion.py
+```
+
+### Настройка Google Slides
+
+1. Google Cloud Console → создайте проект, включите **Google Slides API** и **Google Drive API**
+2. Создайте сервисный аккаунт → Keys → JSON → сохраните как `secrets/google-sa.json` (**не коммитьте**)
+3. Создайте презентацию-шаблон с плейсхолдерами `%DATE%`, `%METRICS%`, `%CHART_1%`
+4. Поделитесь шаблоном с email сервисного аккаунта (Editor)
+5. Скопируйте ID из URL → `GOOGLE_SLIDES_TEMPLATE_ID`
+
+```bash
+GOOGLE_SERVICE_ACCOUNT_JSON=./secrets/google-sa.json python3 scripts/setup_google_slides.py
+```
+
+### Голосом
+
+Intent parser распознаёт формат из речи:
+
+- «сделай в Excel» → `excel`
+- «отправь в Notion» → `notion`
+- «создай презентацию» → `pptx`
+
+### Тест всех форматов
+
+```bash
+python3 scripts/test_formats.py
+```
 
 ## Voice input
 
@@ -544,11 +665,13 @@ curl -OJ -H "X-API-Key: $API_KEY" "https://ваш-домен/tasks/${TASK_ID}/pd
 | `GET` | `/api/preferences` | Текущие настройки |
 | `PUT` | `/api/preferences` | Обновить настройки |
 | `DELETE` | `/api/preferences` | Сбросить к дефолтам |
+| `POST` | `/api/preferences/output_format` | Установить `default_output_format` |
 | `POST` | `/generate_report` | Поставить задачу на отчёт |
 | `POST` | `/voice/generate_report` | Отчёт из голосового сообщения (501 без OpenAI) |
 | `POST` | `/voice/clarify` | Уточнение для голосового запроса |
 | `GET` | `/tasks/{task_id}` | Статус задачи |
-| `GET` | `/tasks/{task_id}/pdf` | Скачать PDF |
+| `GET` | `/tasks/{task_id}/pdf` | Скачать PDF (legacy) |
+| `GET` | `/tasks/{task_id}/export` | Скачать excel/pptx или redirect Notion/Slides |
 | `GET` | `/samples/sample_sales.csv` | Тестовый CSV |
 
 ### `POST /generate_report`
@@ -557,11 +680,12 @@ Multipart form:
 
 | Field        | Type   | Required | Description                    |
 |--------------|--------|----------|--------------------------------|
-| `file`       | file   | no*      | CSV, `.xlsx`, `.xls`           |
-| `sheets_url` | string | no*      | Public Google Sheets URL       |
-| `email`      | string | no       | Email; если пусто — `default_email` из preferences |
+| `file`          | file   | no*      | CSV, `.xlsx`, `.xls`           |
+| `sheets_url`    | string | no*      | Public Google Sheets URL       |
+| `email`         | string | no       | Email; если пусто — `default_email` из preferences |
+| `output_format` | string | no       | `pdf`, `excel`, `pptx`, `notion`, `google_slides` |
 
-\* Укажите **либо** `file`, **либо** `sheets_url`.
+\* Укажите **либо** `file`, **либо** `sheets_url`. Если `output_format` не указан — используется `preferences.default_output_format` или `pdf`.
 
 **Headers:** `X-API-Key: …` (если `DISABLE_AUTH` не включён)
 
@@ -571,8 +695,9 @@ Multipart form:
 {
   "task_id": "abc-123",
   "status": "queued",
-  "message": "Report generation started. Download at GET /tasks/abc-123/pdf when ready.",
-  "download_url": "/tasks/abc-123/pdf",
+  "message": "Report generation started (excel). Download at GET /tasks/abc-123/export when ready.",
+  "download_url": "/tasks/abc-123/export",
+  "output_format": "excel",
   "user_id": "uuid-…",
   "usage_count": 1
 }
@@ -597,16 +722,17 @@ Multipart form:
 | `agent_parser`        | `app/agents/parser.py`       | `logs/log_parser.log`       |
 | `agent_analyst`       | `app/agents/analyst.py`      | `logs/log_analyst.log`      |
 | `agent_visualizer`    | `app/agents/visualizer.py`   | `logs/log_visualizer.log`   |
+| `agent_formatter`     | `app/agents/formatter.py`    | `logs/log_formatter.log`    |
 | `agent_sender`        | `app/agents/sender.py`       | `logs/log_sender.log`       |
 
-Pipeline: `context_loader` → `parser` → `analyst` → `visualizer` → `sender`
+Pipeline: `context_loader` → `parser` → `analyst` → `visualizer` → `formatter` (PDF delegates to `sender`)
 
 ## Database (SQLite)
 
 | Таблица | Назначение |
 |---------|------------|
 | `users` | `id`, `api_key`, `email`, `last_used_at`, `is_active` |
-| `preferences` | chart type, theme, default email, logo URL, timezone |
+| `preferences` | chart type, theme, default email, logo URL, timezone, **default_output_format** |
 | `history` | Аналитика запросов (`user_id`, `task_id`, summary) |
 
 - Файл: `app/data/users.db` (создаётся при старте)

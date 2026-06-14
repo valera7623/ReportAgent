@@ -28,11 +28,20 @@ services:
       - VOICE_ENABLED=${VOICE_ENABLED:-true}
       - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
       - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
+      - FORMATTED_DIR=/app/storage/formatted
+      - DEFAULT_OUTPUT_FORMAT=${DEFAULT_OUTPUT_FORMAT:-pdf}
+      - ALLOWED_OUTPUT_FORMATS=${ALLOWED_OUTPUT_FORMATS:-pdf,excel,pptx,notion,google_slides}
+      - NOTION_INTEGRATION_TOKEN=${NOTION_INTEGRATION_TOKEN:-}
+      - NOTION_DATABASE_ID=${NOTION_DATABASE_ID:-}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON:-/app/secrets/google-sa.json}
+      - GOOGLE_SLIDES_TEMPLATE_ID=${GOOGLE_SLIDES_TEMPLATE_ID:-}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
+      - ./storage/formatted:/app/storage/formatted
       - ./storage/uploads:/app/storage/uploads
       - ./logs:/app/logs
       - ./app/data:/app/app/data
+      - ./secrets:/app/secrets:ro
     networks:
       - internal
     depends_on:
@@ -70,11 +79,20 @@ services:
       - VOICE_ENABLED=${VOICE_ENABLED:-true}
       - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
       - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
+      - FORMATTED_DIR=/app/storage/formatted
+      - DEFAULT_OUTPUT_FORMAT=${DEFAULT_OUTPUT_FORMAT:-pdf}
+      - ALLOWED_OUTPUT_FORMATS=${ALLOWED_OUTPUT_FORMATS:-pdf,excel,pptx,notion,google_slides}
+      - NOTION_INTEGRATION_TOKEN=${NOTION_INTEGRATION_TOKEN:-}
+      - NOTION_DATABASE_ID=${NOTION_DATABASE_ID:-}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON:-/app/secrets/google-sa.json}
+      - GOOGLE_SLIDES_TEMPLATE_ID=${GOOGLE_SLIDES_TEMPLATE_ID:-}
     volumes:
       - ./storage/pdfs:/app/storage/pdfs
+      - ./storage/formatted:/app/storage/formatted
       - ./storage/uploads:/app/storage/uploads
       - ./logs:/app/logs
       - ./app/data:/app/app/data
+      - ./secrets:/app/secrets:ro
       - ./scripts/healthcheck_celery.sh:/usr/local/bin/healthcheck_celery.sh:ro
     networks:
       - internal

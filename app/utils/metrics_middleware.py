@@ -44,6 +44,8 @@ def _normalize_endpoint(path: str) -> str:
     if path.startswith("/tasks/"):
         if path.endswith("/pdf"):
             return "/tasks/{task_id}/pdf"
+        if path.endswith("/export"):
+            return "/tasks/{task_id}/export"
         return "/tasks/{task_id}"
     return path
 

@@ -88,6 +88,8 @@ def _merge_preferences(user_preferences: dict[str, Any], intent: dict[str, Any])
         extra["voice_metrics"] = intent["metrics"]
     if intent.get("group_by"):
         extra["voice_group_by"] = intent["group_by"]
+    if intent.get("output_format"):
+        prefs["default_output_format"] = intent["output_format"]
     prefs["extra"] = extra
     prefs["voice_intent"] = intent
     return prefs

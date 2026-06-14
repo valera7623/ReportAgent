@@ -10,10 +10,11 @@ import redis
 
 from app.agents.analyst import run_analyst
 from app.agents.context_loader import get_user_preferences
+from app.agents.formatter import format_report
 from app.agents.parser import run_parser
-from app.agents.sender import run_sender
 from app.agents.visualizer import run_visualizer
 from app.celery_app import celery_app
+from app.config.output_formats import EXTERNAL_FORMATS, resolve_output_format
 from app.models.schemas import AgentError
 from app.voice.orchestrator import process_voice
 from app.voice.storage import delete_voice_file
@@ -59,6 +60,53 @@ def _source_type_label(
     return "unknown"
 
 
+def _build_task_result(
+    task_id: str,
+    visualized: dict[str, Any],
+    formatted,
+    email: str | None,
+) -> dict[str, Any]:
+    """Merge formatter output into Celery task result dict."""
+    output_format = formatted.output_format
+    chart_count = len(visualized.get("chart_paths") or [])
+
+    if output_format in EXTERNAL_FORMATS:
+        message = f"Report generated as {output_format}. Open external_url."
+        download_url = f"/tasks/{task_id}/export"
+    elif output_format == "pdf":
+        message = (
+            f"Report generated and sent to {email}"
+            if email
+            else "Report generated. Download via GET /tasks/{task_id}/pdf"
+        )
+        download_url = f"/tasks/{task_id}/pdf"
+    else:
+        message = f"Report generated as {output_format}. Download via GET /tasks/{task_id}/export"
+        download_url = f"/tasks/{task_id}/export"
+
+    result: dict[str, Any] = {
+        "task_id": task_id,
+        "email": email or visualized.get("email"),
+        "chart_count": chart_count,
+        "status": "completed",
+        "message": message,
+        "output_format": output_format,
+        "content_type": formatted.content_type,
+        "download_url": download_url,
+    }
+
+    if formatted.file_path:
+        result["file_path"] = formatted.file_path
+    if formatted.external_url:
+        result["external_url"] = formatted.external_url
+    if formatted.pdf_path:
+        result["pdf_path"] = formatted.pdf_path
+    elif output_format == "pdf" and formatted.file_path:
+        result["pdf_path"] = formatted.file_path
+
+    return result
+
+
 def _run_report_pipeline(
     task_id: str,
     *,
@@ -68,8 +116,10 @@ def _run_report_pipeline(
     api_key: str | None,
     preferences: dict[str, Any] | None = None,
     voice: bool = False,
+    output_format: str | None = None,
 ) -> dict[str, Any]:
     prefs = preferences or get_user_preferences(api_key)
+    fmt = resolve_output_format(output_format, prefs)
     source_type = _source_type_label(
         sheets_url=sheets_url,
         file_path=file_path,
@@ -86,7 +136,21 @@ def _run_report_pipeline(
         )
         analyzed = run_analyst(parsed, preferences=prefs)
         visualized = run_visualizer(analyzed, preferences=prefs)
-        return run_sender(visualized, preferences=prefs)
+        charts = visualized.get("chart_paths") or []
+
+        formatted = format_report(
+            visualized,
+            charts=charts,
+            output_format=fmt,
+            user_preferences=prefs,
+        )
+
+        return _build_task_result(
+            task_id,
+            visualized,
+            formatted,
+            email or visualized.get("email"),
+        )
     finally:
         report_generation_duration_seconds.labels(source_type=source_type).observe(
             time.perf_counter() - started
@@ -100,10 +164,11 @@ def generate_report(
     sheets_url: str | None = None,
     file_path: str | None = None,
     api_key: str | None = None,
+    output_format: str | None = None,
 ) -> dict[str, Any]:
-    """Run context_loader → parser → analyst → visualizer → sender pipeline."""
+    """Run context_loader → parser → analyst → visualizer → formatter pipeline."""
     task_id = self.request.id or "unknown"
-    logger.info("Task %s started (email=%s)", task_id, email or "none")
+    logger.info("Task %s started (email=%s, format=%s)", task_id, email or "none", output_format or "default")
 
     try:
         result = _run_report_pipeline(
@@ -112,8 +177,9 @@ def generate_report(
             sheets_url=sheets_url,
             file_path=file_path,
             api_key=api_key,
+            output_format=output_format,
         )
-        logger.info("Task %s completed successfully", task_id)
+        logger.info("Task %s completed successfully (format=%s)", task_id, result.get("output_format"))
         return result
 
     except AgentError as exc:
@@ -148,6 +214,9 @@ def generate_voice_report(
 
     try:
         prefs = preferences or get_user_preferences(api_key)
+        output_format = prefs.get("default_output_format")
+        if intent and intent.get("output_format"):
+            output_format = intent["output_format"]
 
         if transcript is None or intent is None:
             voice_result = process_voice(
@@ -167,6 +236,8 @@ def generate_voice_report(
             sheets_url = voice_result.sheets_url
             file_path = voice_result.file_path
             prefs = voice_result.preferences
+            if voice_result.intent.get("output_format"):
+                output_format = voice_result.intent["output_format"]
 
         result = _run_report_pipeline(
             task_id,
@@ -176,6 +247,7 @@ def generate_voice_report(
             api_key=api_key,
             preferences=prefs,
             voice=True,
+            output_format=output_format,
         )
         result["voice_transcript"] = transcript
         result["voice_intent"] = intent

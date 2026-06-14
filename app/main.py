@@ -8,11 +8,12 @@ from typing import Annotated
 
 from celery.result import AsyncResult
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from app.agents.parser import save_upload, validate_request
 from app.celery_app import celery_app
-from app.db.database import get_usage_count, resolve_email_for_user
+from app.config.output_formats import EXTERNAL_FORMATS, resolve_output_format
+from app.db.database import get_usage_count, log_history, resolve_email_for_user
 from app.db.init_db import run_migrations
 from app.middleware.auth import APIKeyAuthMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
@@ -29,7 +30,7 @@ from app.tasks import generate_report
 from app.voice.config import voice_available
 from app.voice.redis_store import get_voice_status, load_partial_state
 from app.utils.logger import get_logger
-from app.utils.paths import resolve_pdf_path
+from app.utils.paths import resolve_formatted_path, resolve_pdf_path
 
 logger = get_logger("main", "log_api.log")
 
@@ -48,11 +49,12 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="ReportAgent",
     description=(
-        "Upload CSV/Excel or provide a public Google Sheets URL to generate a PDF report. "
-        "Receive it by email or download via API. "
+        "Upload CSV/Excel or provide a public Google Sheets URL to generate reports "
+        "in PDF, Excel, PowerPoint, Notion, or Google Slides. "
+        "Receive by email or download via API. "
         "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
     ),
-    version="1.4.0",
+    version="1.5.0",
     lifespan=lifespan,
 )
 
@@ -65,11 +67,60 @@ app.include_router(preferences.router)
 app.include_router(voice.router)
 
 
-def _build_queue_message(email: str | None, task_id: str) -> str:
-    download_hint = f"Download at GET /tasks/{task_id}/pdf when ready."
-    if email:
+def _download_url_for_format(task_id: str, output_format: str) -> str:
+    if output_format == "pdf":
+        return f"/tasks/{task_id}/pdf"
+    return f"/tasks/{task_id}/export"
+
+
+def _build_queue_message(email: str | None, task_id: str, output_format: str) -> str:
+    download_hint = f"Download at GET {_download_url_for_format(task_id, output_format)} when ready."
+    if output_format in EXTERNAL_FORMATS:
+        download_hint = f"External link at GET /tasks/{task_id}/export when ready."
+    if email and output_format == "pdf":
         return f"Report generation started. PDF will be emailed to {email}. {download_hint}"
-    return f"Report generation started. {download_hint}"
+    return f"Report generation started ({output_format}). {download_hint}"
+
+
+def _validate_format_credentials(output_format: str) -> None:
+    """Return 400 if external format requested without credentials."""
+    import os
+
+    if output_format == "notion":
+        if not os.getenv("NOTION_INTEGRATION_TOKEN", "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Notion export requires NOTION_INTEGRATION_TOKEN. "
+                    "Configure .env or choose another output_format."
+                ),
+            )
+        if not os.getenv("NOTION_DATABASE_ID", "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Notion export requires NOTION_DATABASE_ID. "
+                    "Configure .env or choose another output_format."
+                ),
+            )
+    if output_format == "google_slides":
+        sa_path = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "./secrets/google-sa.json")
+        if not Path(sa_path).is_file():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Google Slides export requires service account JSON at {sa_path}. "
+                    "Mount secrets/google-sa.json or choose another output_format."
+                ),
+            )
+        if not os.getenv("GOOGLE_SLIDES_TEMPLATE_ID", "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Google Slides export requires GOOGLE_SLIDES_TEMPLATE_ID. "
+                    "Configure .env or choose another output_format."
+                ),
+            )
 
 
 @app.get("/")
@@ -113,6 +164,10 @@ async def generate_report_endpoint(
     request: Request,
     sheets_url: Annotated[str | None, Form(description="Public Google Sheets URL")] = None,
     email: Annotated[str | None, Form(description="Optional recipient email")] = None,
+    output_format: Annotated[
+        str | None,
+        Form(description="Output format: pdf, excel, pptx, notion, google_slides"),
+    ] = None,
     file: UploadFile | None = File(default=None, description="CSV or Excel file"),
 ) -> GenerateReportResponse:
     """
@@ -120,14 +175,26 @@ async def generate_report_endpoint(
 
     Provide **either** a file upload **or** a public Google Sheets URL.
     Email is optional — uses saved default from preferences when omitted.
+    output_format is optional — uses preferences.default_output_format or pdf.
     Requires **X-API-Key** header (unless DISABLE_AUTH=true).
     """
     has_file = file is not None and file.filename not in (None, "")
     sheets_url_clean = sheets_url.strip() if sheets_url else None
     email_clean = email.strip() if email else None
+    output_format_clean = output_format.strip().lower() if output_format else None
 
     user_id = getattr(request.state, "user_id", None)
     api_key = getattr(request.state, "api_key", None)
+
+    from app.agents.context_loader import get_user_preferences
+
+    prefs = get_user_preferences(api_key)
+    try:
+        resolved_format = resolve_output_format(output_format_clean, prefs)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    _validate_format_credentials(resolved_format)
 
     if user_id:
         email_clean = resolve_email_for_user(user_id, email_clean)
@@ -155,20 +222,57 @@ async def generate_report_endpoint(
         sheets_url=sheets_url_clean,
         file_path=file_path,
         api_key=api_key,
+        output_format=resolved_format,
     )
 
     usage_count = 0
     if user_id:
         usage_count = get_usage_count(user_id) + 1
+        log_history(
+            user_id,
+            f"POST /generate_report format={resolved_format}",
+            task.id,
+            output_format=resolved_format,
+        )
 
-    logger.info("Queued task %s (email=%s, user=%s)", task.id, email_clean or "none", user_id or "anon")
+    download_url = _download_url_for_format(task.id, resolved_format)
+    logger.info(
+        "Queued task %s (email=%s, user=%s, format=%s)",
+        task.id,
+        email_clean or "none",
+        user_id or "anon",
+        resolved_format,
+    )
     return GenerateReportResponse(
         task_id=task.id,
-        message=_build_queue_message(email_clean, task.id),
-        download_url=f"/tasks/{task.id}/pdf",
+        message=_build_queue_message(email_clean, task.id, resolved_format),
+        download_url=download_url,
+        output_format=resolved_format,
         user_id=user_id,
         usage_count=usage_count,
     )
+
+
+def _get_task_result_or_raise(task_id: str) -> dict:
+    result = AsyncResult(task_id, app=celery_app)
+
+    if result.state in ("PENDING", "STARTED"):
+        raise HTTPException(
+            status_code=202,
+            detail="Report is still being generated. Try again shortly.",
+        )
+
+    if result.state == "FAILURE":
+        error_msg = str(result.result)
+        raise HTTPException(status_code=400, detail=f"Report generation failed: {error_msg}")
+
+    if result.state != "SUCCESS":
+        raise HTTPException(status_code=404, detail=f"Unknown task state: {result.state}")
+
+    if not isinstance(result.result, dict):
+        raise HTTPException(status_code=500, detail="Invalid task result format.")
+
+    return result.result
 
 
 @app.get("/tasks/{task_id}", response_model=TaskStatusResponse)
@@ -197,7 +301,11 @@ async def get_task_status(task_id: str) -> TaskStatusResponse:
     if state == "SUCCESS":
         payload = result.result if isinstance(result.result, dict) else {"result": result.result}
         if isinstance(payload, dict):
-            payload = {**payload, "download_url": f"/tasks/{task_id}/pdf"}
+            fmt = payload.get("output_format", "pdf")
+            payload = {
+                **payload,
+                "download_url": payload.get("download_url") or _download_url_for_format(task_id, fmt),
+            }
         return TaskStatusResponse(
             task_id=task_id,
             status=TaskState.SUCCESS,
@@ -219,26 +327,10 @@ async def get_task_status(task_id: str) -> TaskStatusResponse:
 
 @app.get("/tasks/{task_id}/pdf")
 async def download_report_pdf(task_id: str) -> FileResponse:
-    """Download generated PDF. No email required."""
-    result = AsyncResult(task_id, app=celery_app)
+    """Download generated PDF. No email required. Backward-compatible endpoint."""
+    payload = _get_task_result_or_raise(task_id)
 
-    if result.state in ("PENDING", "STARTED"):
-        raise HTTPException(
-            status_code=202,
-            detail="Report is still being generated. Try again shortly.",
-        )
-
-    if result.state == "FAILURE":
-        error_msg = str(result.result)
-        raise HTTPException(status_code=400, detail=f"Report generation failed: {error_msg}")
-
-    if result.state != "SUCCESS":
-        raise HTTPException(status_code=404, detail=f"Unknown task state: {result.state}")
-
-    pdf_path_value: str | None = None
-    if isinstance(result.result, dict):
-        pdf_path_value = result.result.get("pdf_path")
-
+    pdf_path_value: str | None = payload.get("pdf_path") or payload.get("file_path")
     pdf_path = resolve_pdf_path(task_id, pdf_path_value)
     if not pdf_path.is_file():
         raise HTTPException(status_code=404, detail="PDF file not found for this task.")
@@ -247,6 +339,48 @@ async def download_report_pdf(task_id: str) -> FileResponse:
         pdf_path,
         media_type="application/pdf",
         filename=f"report_{task_id}.pdf",
+    )
+
+
+@app.get("/tasks/{task_id}/export")
+async def export_report(task_id: str) -> Response:
+    """
+    Download formatted report or redirect to external URL (Notion / Google Slides).
+    """
+    payload = _get_task_result_or_raise(task_id)
+    output_format = payload.get("output_format", "pdf")
+    content_type = payload.get("content_type", "application/octet-stream")
+
+    external_url = payload.get("external_url")
+    if external_url:
+        return RedirectResponse(url=external_url, status_code=302)
+
+    if output_format == "pdf":
+        pdf_path = resolve_pdf_path(task_id, payload.get("pdf_path") or payload.get("file_path"))
+        if not pdf_path.is_file():
+            raise HTTPException(status_code=404, detail="PDF file not found for this task.")
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename=f"report_{task_id}.pdf",
+        )
+
+    file_path = resolve_formatted_path(
+        task_id,
+        output_format,
+        payload.get("file_path"),
+    )
+    if file_path is None or not file_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Export file not found for format '{output_format}'.",
+        )
+
+    ext = file_path.suffix.lstrip(".") or output_format
+    return FileResponse(
+        file_path,
+        media_type=content_type,
+        filename=f"report_{task_id}.{ext}",
     )
 
 

@@ -76,6 +76,29 @@ http_request_duration_seconds = Histogram(
     buckets=AGENT_DURATION_BUCKETS,
 )
 
+report_format_requests_total = Counter(
+    "report_format_requests_total",
+    "Report formatting requests by output format",
+    ["output_format", "status"],
+)
+
+report_format_duration_seconds = Histogram(
+    "report_format_duration_seconds",
+    "Report formatting duration in seconds",
+    ["output_format"],
+    buckets=AGENT_DURATION_BUCKETS,
+)
+
+notion_api_errors_total = Counter(
+    "notion_api_errors_total",
+    "Notion API errors during report export",
+)
+
+google_slides_api_errors_total = Counter(
+    "google_slides_api_errors_total",
+    "Google Slides API errors during report export",
+)
+
 _background_started = False
 _background_lock = threading.Lock()
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -179,6 +202,30 @@ def get_metrics_payload() -> bytes:
     """Return latest Prometheus metrics exposition format."""
     refresh_all_gauges()
     return generate_latest()
+
+
+def record_format_request(
+    output_format: str,
+    status: str,
+    duration_seconds: float | None = None,
+) -> None:
+    """Increment format counter and optionally observe duration."""
+    report_format_requests_total.labels(
+        output_format=output_format,
+        status=status,
+    ).inc()
+    if duration_seconds is not None and status != "cached":
+        report_format_duration_seconds.labels(output_format=output_format).observe(
+            duration_seconds
+        )
+    log_metric_event(
+        "report_format",
+        {
+            "output_format": output_format,
+            "status": status,
+            "duration_seconds": round(duration_seconds, 4) if duration_seconds else None,
+        },
+    )
 
 
 def record_voice_transcription(success: bool) -> None:

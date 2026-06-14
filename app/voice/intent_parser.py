@@ -29,7 +29,15 @@ SYSTEM_PROMPT = """Ты — intent parser для генерации отчёто
 - metrics: список колонок или метрик для анализа (например ["sales", "profit"])
 - group_by: колонка для группировки (например "month", "category")
 - target_email: email получателя (если есть)
+- output_format: формат вывода — "pdf", "excel", "pptx", "notion", "google_slides" (если явно указан, иначе null)
 - missing_info: список того, чего не хватает (например ["source_type", "metrics"])
+
+Примеры output_format:
+- "сделай в Excel", "эксель" → "excel"
+- "отправь в Notion", "в ноушен" → "notion"
+- "создай презентацию", "powerpoint", "pptx" → "pptx"
+- "google slides", "гугл презентацию" → "google_slides"
+- "pdf", "пдф" → "pdf"
 
 Если email произнесён как "sobaka" или "собака" вместо @ — верни нормальный email с @.
 "график по месяцам" / "динамика" → chart_type "line"; "круговая" → "pie"; иначе null.
@@ -66,6 +74,7 @@ def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> d
     prefs = user_preferences or {}
     default_chart = prefs.get("preferred_chart_type", "bar")
     default_email = prefs.get("default_email")
+    default_format = prefs.get("default_output_format", "pdf")
     text = normalize_spoken_email(text)
 
     if not text.strip():
@@ -76,6 +85,7 @@ def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> d
             "metrics": [],
             "group_by": None,
             "target_email": default_email,
+            "output_format": default_format,
             "missing_info": ["transcript", "source_type"],
             "raw_transcript": text,
         }
@@ -83,11 +93,12 @@ def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> d
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         logger.error("OPENAI_API_KEY not configured; intent parsing skipped")
-        return _fallback_intent(text, default_chart, default_email)
+        return _fallback_intent(text, default_chart, default_email, default_format)
 
     user_hint = (
         f"User preferences hint: preferred_chart_type={default_chart}, "
-        f"default_email={default_email or 'none'}"
+        f"default_email={default_email or 'none'}, "
+        f"default_output_format={default_format}"
     )
 
     try:
@@ -107,13 +118,32 @@ def parse_intent(text: str, user_preferences: dict[str, Any] | None = None) -> d
         logger.info("LLM raw intent response: %s", raw[:500])
 
         parsed = json.loads(raw)
-        intent = _normalize_intent(parsed, text, default_chart, default_email)
+        intent = _normalize_intent(parsed, text, default_chart, default_email, default_format)
         logger.info("Parsed intent: %s", json.dumps(intent, ensure_ascii=False)[:500])
         return intent
 
     except Exception as exc:
         logger.exception("Intent parsing failed: %s", exc)
-        return _fallback_intent(text, default_chart, default_email)
+        return _fallback_intent(text, default_chart, default_email, default_format)
+
+
+_OUTPUT_FORMAT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "excel": ("excel", "эксель", "xlsx", "таблиц"),
+    "notion": ("notion", "ноушен", "ноушн"),
+    "pptx": ("презентац", "powerpoint", "pptx", "ppt", "слайд"),
+    "google_slides": ("google slides", "гугл слайд", "гугл презентац", "google_slides"),
+    "pdf": ("pdf", "пдф"),
+}
+
+
+def _infer_output_format(transcript: str, parsed_format: str | None) -> str | None:
+    if parsed_format in ("pdf", "excel", "pptx", "notion", "google_slides"):
+        return parsed_format
+    lower = transcript.lower()
+    for fmt, keywords in _OUTPUT_FORMAT_KEYWORDS.items():
+        if any(kw in lower for kw in keywords):
+            return fmt
+    return None
 
 
 def _infer_chart_type(transcript: str, parsed_chart: str | None, default: str) -> str:
@@ -132,6 +162,7 @@ def _normalize_intent(
     transcript: str,
     default_chart: str,
     default_email: str | None,
+    default_format: str = "pdf",
 ) -> dict[str, Any]:
     email = _normalize_email_value(parsed.get("target_email"))
     if not email:
@@ -140,6 +171,7 @@ def _normalize_intent(
         email = _normalize_email_value(email)
 
     chart = _infer_chart_type(transcript, parsed.get("chart_type"), default_chart)
+    output_format = _infer_output_format(transcript, parsed.get("output_format")) or default_format
 
     source_type = parsed.get("source_type")
     source_value = parsed.get("source_value")
@@ -170,12 +202,18 @@ def _normalize_intent(
         "metrics": metrics,
         "group_by": parsed.get("group_by"),
         "target_email": email,
+        "output_format": output_format,
         "missing_info": missing,
         "raw_transcript": transcript,
     }
 
 
-def _fallback_intent(text: str, default_chart: str, default_email: str | None) -> dict[str, Any]:
+def _fallback_intent(
+    text: str,
+    default_chart: str,
+    default_email: str | None,
+    default_format: str = "pdf",
+) -> dict[str, Any]:
     url_match = re.search(r"https?://\S+", text)
     source_type = "sheets_url" if url_match else None
     source_value = url_match.group(0).rstrip(".,)") if url_match else None
@@ -191,6 +229,7 @@ def _fallback_intent(text: str, default_chart: str, default_email: str | None) -
         "metrics": [],
         "group_by": None,
         "target_email": _extract_email_regex(text) or default_email,
+        "output_format": _infer_output_format(text, None) or default_format,
         "missing_info": missing,
         "raw_transcript": text,
     }

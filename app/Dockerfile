@@ -33,7 +33,29 @@ ENV PYTHONUNBUFFERED=1 \
 
 COPY . /app/app/
 
-RUN mkdir -p /app/storage/pdfs /app/storage/uploads /app/logs
+RUN mkdir -p /app/storage/pdfs /app/storage/uploads /app/storage/formatted /app/logs /app/app/templates \
+    && python - <<'PY'
+from pathlib import Path
+from pptx import Presentation
+from pptx.util import Inches, Pt
+
+out = Path("/app/app/templates/template.pptx")
+prs = Presentation()
+slide = prs.slides.add_slide(prs.slide_layouts[0])
+slide.shapes.title.text = "ReportAgent Report"
+if len(slide.placeholders) > 1:
+    slide.placeholders[1].text = "%DATE%\nReportAgent"
+content = prs.slides.add_slide(prs.slide_layouts[1])
+if content.shapes.title:
+    content.shapes.title.text = "Summary"
+if len(content.placeholders) > 1:
+    content.placeholders[1].text = "%METRICS%"
+blank = prs.slides.add_slide(prs.slide_layouts[6])
+box = blank.shapes.add_textbox(Inches(1), Inches(2), Inches(8), Inches(1))
+box.text_frame.text = "%CHART_1%"
+prs.save(out)
+print("Created", out)
+PY
 
 EXPOSE 8000
 
