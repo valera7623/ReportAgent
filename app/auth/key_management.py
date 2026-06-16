@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from app.db.database import get_connection, mask_api_key, update_last_used_at
+from app.db.database import get_connection, mask_api_key
 from app.models.api_key import ApiKeyResponse
 from app.utils.logger import get_logger
 from app.utils.metrics import (
@@ -146,7 +146,10 @@ def verify_api_key(
                 """,
                 (now, client_ip, row["id"]),
             )
-            update_last_used_at(row["user_id"])
+            conn.execute(
+                "UPDATE users SET last_used_at = ? WHERE id = ?",
+                (now, row["user_id"]),
+            )
             return {
                 "user_id": row["user_id"],
                 "key_id": row["id"],
@@ -169,7 +172,10 @@ def verify_api_key(
             record_api_key_auth_failure("revoked")
             return None
 
-        update_last_used_at(legacy_row["id"])
+        conn.execute(
+            "UPDATE users SET last_used_at = ? WHERE id = ?",
+            (now, legacy_row["id"]),
+        )
 
         migrated = conn.execute(
             "SELECT id FROM api_keys WHERE user_id = ? AND key_hash = ?",
