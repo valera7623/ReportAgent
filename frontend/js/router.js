@@ -1,3 +1,5 @@
+import { stopHealthPolling } from "./pages/admin.js";
+
 const routes = {};
 
 export function registerRoute(path, handler) {
@@ -19,6 +21,10 @@ export function navigate(path) {
 
 export async function renderRoute() {
   const { parts, params, path } = parseHash();
+
+  if (path !== "/admin/health") {
+    stopHealthPolling();
+  }
 
   if (path === "/login") {
     await routes["/login"]?.(params);

@@ -189,10 +189,61 @@ active_users_total = Gauge(
     "Total active (non-blocked) users",
 )
 
+yookassa_payments_total = Counter(
+    "yookassa_payments_total",
+    "YooKassa payment events",
+    ["status"],
+)
+
+yookassa_payments_amount_total = Counter(
+    "yookassa_payments_amount_total",
+    "YooKassa payment amount total in RUB",
+)
+
+active_subscriptions_total = Gauge(
+    "active_subscriptions_total",
+    "Active paid subscriptions",
+)
+
+payments_completed_total = Counter(
+    "payments_completed_total",
+    "Successful payment events",
+    ["provider"],
+)
+
+payments_failed_total = Counter(
+    "payments_failed_total",
+    "Failed payment events",
+    ["provider"],
+)
+
+monthly_recurring_revenue = Gauge(
+    "monthly_recurring_revenue",
+    "Monthly recurring revenue in USD cents (Stripe succeeded payments, last 30 days)",
+)
+
+_mrr_cents_cache = 0
+
 rate_limit_exceeded_total = Counter(
     "rate_limit_exceeded_total",
     "Rate limit exceeded events",
     ["user_id_hash"],
+)
+
+preview_generated_total = Counter(
+    "preview_generated_total",
+    "Report previews generated",
+)
+
+preview_confirmed_total = Counter(
+    "preview_confirmed_total",
+    "Report previews confirmed into full generation",
+)
+
+preview_generation_duration_seconds = Histogram(
+    "preview_generation_duration_seconds",
+    "Preview generation duration in seconds",
+    buckets=AGENT_DURATION_BUCKETS,
 )
 
 _background_started = False
@@ -267,6 +318,8 @@ def refresh_all_gauges() -> None:
     refresh_database_size()
     refresh_knowledge_base_size()
     refresh_users_gauges()
+    refresh_active_subscriptions_gauge()
+    update_mrr_gauge()
 
 
 def _background_loop(interval: float, func: Callable[[], None], name: str) -> None:
@@ -411,6 +464,87 @@ def record_user_deleted() -> None:
 
 def record_rate_limit_exceeded(user_id: str) -> None:
     rate_limit_exceeded_total.labels(user_id_hash=hash_user_id(user_id)).inc()
+
+
+def record_preview_generated(duration_seconds: float | None = None) -> None:
+    preview_generated_total.inc()
+    if duration_seconds is not None:
+        preview_generation_duration_seconds.observe(duration_seconds)
+
+
+def record_preview_confirmed() -> None:
+    preview_confirmed_total.inc()
+
+
+def record_yookassa_payment(*, status: str, amount_rub: float | None = None) -> None:
+    """Record YooKassa payment counter and optional amount in RUB."""
+    yookassa_payments_total.labels(status=status).inc()
+    if amount_rub is not None and amount_rub > 0:
+        yookassa_payments_amount_total.inc(amount_rub)
+    if status == "succeeded":
+        payments_completed_total.labels(provider="yookassa").inc()
+    elif status in ("canceled", "failed"):
+        payments_failed_total.labels(provider="yookassa").inc()
+
+
+def record_stripe_payment(
+    *,
+    status: str,
+    amount_cents: int | None = None,
+    currency: str = "usd",
+) -> None:
+    """Record Stripe payment metrics."""
+    if status == "succeeded":
+        payments_completed_total.labels(provider="stripe").inc()
+        if amount_cents and currency.lower() == "usd":
+            update_mrr_gauge(amount_cents=amount_cents)
+    elif status in ("failed", "canceled"):
+        payments_failed_total.labels(provider="stripe").inc()
+
+
+def update_mrr_gauge(*, amount_cents: int = 0) -> None:
+    """Refresh MRR gauge from Stripe payments in the last 30 days."""
+    global _mrr_cents_cache
+    if amount_cents > 0:
+        _mrr_cents_cache += amount_cents
+    try:
+        from app.db.database import get_connection
+
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COALESCE(SUM(amount), 0) AS mrr
+                FROM payments
+                WHERE provider = 'stripe'
+                  AND status = 'succeeded'
+                  AND datetime(created_at) >= datetime('now', '-30 days')
+                """
+            ).fetchone()
+        mrr = int(row["mrr"]) if row else _mrr_cents_cache
+        monthly_recurring_revenue.set(mrr)
+    except Exception as exc:
+        logger.warning("Failed to update MRR gauge: %s", exc)
+        monthly_recurring_revenue.set(_mrr_cents_cache)
+
+
+def refresh_active_subscriptions_gauge() -> None:
+    """Count active subscriptions from SQLite."""
+    try:
+        from app.db.database import get_connection
+
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM subscriptions
+                WHERE status = 'active'
+                  AND plan_type != 'freemium'
+                  AND (expires_at IS NULL OR datetime(expires_at) >= datetime('now'))
+                """
+            ).fetchone()
+        active_subscriptions_total.set(int(row["cnt"]) if row else 0)
+    except Exception as exc:
+        logger.warning("Failed to refresh active_subscriptions_total: %s", exc)
 
 
 def refresh_users_gauges() -> None:

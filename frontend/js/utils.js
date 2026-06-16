@@ -51,6 +51,36 @@ export function statusClass(status) {
   return "badge-muted";
 }
 
+export function paymentStatusClass(status) {
+  const s = (status || "").toLowerCase();
+  if (s === "succeeded") return "badge-success";
+  if (s === "canceled" || s === "cancelled") return "badge-danger";
+  if (s === "pending" || s === "waiting_for_capture") return "badge-warn";
+  return "badge-muted";
+}
+
+export function formatRubles(kopeks) {
+  if (kopeks == null || Number.isNaN(Number(kopeks))) return "—";
+  return `${(Number(kopeks) / 100).toFixed(2)} ₽`;
+}
+
+export function formatUsdCents(cents) {
+  if (cents == null || Number.isNaN(Number(cents))) return "—";
+  return `$${(Number(cents) / 100).toFixed(2)}`;
+}
+
+const PLAN_LABELS = {
+  freemium: "Freemium",
+  premium: "Premium",
+  premium_monthly: "Premium (месяц)",
+  premium_yearly: "Premium (год)",
+  enterprise: "Enterprise",
+};
+
+export function planLabel(planType) {
+  return PLAN_LABELS[planType] || planType || "—";
+}
+
 export function healthDot(status) {
   if (status === "ok") return "dot-ok";
   if (status === "degraded" || status === "disabled") return "dot-warn";

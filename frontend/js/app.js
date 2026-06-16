@@ -6,7 +6,14 @@ import { renderDashboard } from "./pages/dashboard.js";
 import { renderReports } from "./pages/reports.js";
 import { renderKeys } from "./pages/keys.js";
 import { renderWebhooks } from "./pages/webhooks.js";
+import { renderPricing } from "./pages/pricing.js";
+import { renderPricingYookassa } from "./pages/pricing_yookassa.js";
+import { renderSubscription } from "./pages/subscription.js";
+import { renderSuccess } from "./pages/success.js";
+import { renderCancel } from "./pages/cancel.js";
 import { renderPreferences } from "./pages/preferences.js";
+import { renderPaymentSuccess } from "./pages/payment_success.js";
+import { renderPaymentCancel } from "./pages/payment_cancel.js";
 import {
   renderAdminUsers,
   renderAdminUserDetail,
@@ -15,6 +22,7 @@ import {
   renderAdminSelfHealing,
   renderAdminLogs,
 } from "./pages/admin.js";
+import { renderAdminPayments } from "./pages/admin_payments.js";
 
 const app = document.getElementById("app");
 
@@ -27,7 +35,15 @@ async function boot() {
   registerRoute("/reports", () => renderReports(app));
   registerRoute("/keys", () => renderKeys(app));
   registerRoute("/webhooks", () => renderWebhooks(app));
+  registerRoute("/pricing", () => renderPricing(app));
+  registerRoute("/pricing-yookassa", () => renderPricingYookassa(app));
+  registerRoute("/subscription", () => renderSubscription(app));
+  registerRoute("/success", (params) => renderSuccess(app, params));
+  registerRoute("/cancel", () => renderCancel(app));
   registerRoute("/preferences", () => renderPreferences(app));
+  registerRoute("/payment/success", (params) => renderPaymentSuccess(app, params));
+  registerRoute("/payment/cancel", (params) => renderPaymentCancel(app, params));
+  registerRoute("/admin/payments", () => renderAdminPayments(app));
   registerRoute("/admin/users", () => renderAdminUsers(app));
   registerRoute("/admin/users/:id", (id) => renderAdminUserDetail(app, id));
   registerRoute("/admin/health", () => renderAdminHealth(app));
@@ -38,15 +54,16 @@ async function boot() {
   if (state.isAuthenticated) {
     let isAdmin = false;
     let isUser = false;
+    const authOpts = { skipAuthRedirect: true };
     try {
-      await adminApi.checkAdmin({ skipAuthRedirect: true });
+      await adminApi.checkAdmin(authOpts);
       isAdmin = true;
       setIsAdmin(true);
     } catch {
       setIsAdmin(false);
     }
     try {
-      await dashboardApi.stats({ skipAuthRedirect: true });
+      await dashboardApi.stats(authOpts);
       isUser = true;
     } catch {
       isUser = false;

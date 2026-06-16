@@ -2,7 +2,7 @@ import { API_BASE } from "./config.js";
 import { API_KEY_STORAGE } from "./config.js";
 import { logout } from "./state.js";
 import { navigate } from "./router.js";
-import { toast } from "./ui.js";
+import { showModal, toast } from "./ui.js";
 import { qs } from "./utils.js";
 
 function headers(json = true) {
@@ -11,6 +11,18 @@ function headers(json = true) {
   const key = localStorage.getItem(API_KEY_STORAGE);
   if (key) h["X-API-Key"] = key;
   return h;
+}
+
+async function showUpgradeModal(message) {
+  await showModal({
+    title: "Лимит отчётов исчерпан",
+    body: `<p>${message || "Оформите подписку, чтобы продолжить генерацию отчётов."}</p>`,
+    footer: `
+      <button class="btn btn-outline" data-modal-action="false">Закрыть</button>
+      <button class="btn" data-modal-action="upgrade">Смотреть тарифы</button>`,
+  }).then((action) => {
+    if (action === "upgrade") navigate("/pricing");
+  });
 }
 
 async function handleResponse(res, { skipAuthRedirect = false } = {}) {
@@ -25,12 +37,15 @@ async function handleResponse(res, { skipAuthRedirect = false } = {}) {
   }
 
   const detail = data?.detail;
+  const detailObj = typeof detail === "object" && detail !== null ? detail : null;
   const serverMsg =
     typeof detail === "string"
       ? detail
-      : Array.isArray(detail)
-        ? detail.map((d) => d.msg || d).join(", ")
-        : null;
+      : detailObj?.message
+        ? detailObj.message
+        : Array.isArray(detail)
+          ? detail.map((d) => d.msg || d).join(", ")
+          : null;
 
   if (res.status === 401) {
     if (!skipAuthRedirect) {
@@ -39,6 +54,13 @@ async function handleResponse(res, { skipAuthRedirect = false } = {}) {
       throw new Error("Сессия истекла. Войдите снова.");
     }
     throw new Error(serverMsg || "Неверный API-ключ");
+  }
+
+  if (res.status === 402) {
+    if (!skipAuthRedirect) {
+      await showUpgradeModal(serverMsg);
+    }
+    throw new Error(serverMsg || "Требуется подписка");
   }
 
   if (res.status === 204) return null;
@@ -60,7 +82,29 @@ export async function api(path, options = {}) {
 }
 
 export const dashboardApi = {
-  stats: () => api("/api/dashboard/stats"),
+  stats: (opts = {}) => api("/api/dashboard/stats", opts),
+};
+
+export const paymentsApi = {
+  prices: (opts = {}) => api("/api/payments/prices", opts),
+  subscription: (opts = {}) => api("/api/payments/subscription", opts),
+  createCheckout: (body, opts = {}) =>
+    api("/api/payments/create-checkout", {
+      method: "POST",
+      body: JSON.stringify(body),
+      ...opts,
+    }),
+  cancelSubscription: (opts = {}) =>
+    api("/api/payments/cancel-subscription", { method: "POST", ...opts }),
+  /** YooKassa (legacy / RU) */
+  yookassaSubscription: (opts = {}) => api("/api/payments/yookassa/subscription", opts),
+  yookassaCreate: (body, opts = {}) =>
+    api("/api/payments/yookassa/create", {
+      method: "POST",
+      body: JSON.stringify(body),
+      ...opts,
+    }),
+  yookassaStatus: (id, opts = {}) => api(`/api/payments/yookassa/status/${id}`, opts),
 };
 
 export const reportsApi = {
@@ -68,6 +112,36 @@ export const reportsApi = {
   delete: (id) => api(`/api/reports/${id}`, { method: "DELETE" }),
   retry: (formData) =>
     api("/generate_report", { method: "POST", body: formData, headers: headers(false) }),
+};
+
+export const previewApi = {
+  create: (formData) =>
+    api("/api/reports/preview", { method: "POST", body: formData, headers: headers(false) }),
+  get: (previewId) => api(`/api/reports/preview/${previewId}`),
+  jobStatus: (jobId) => api(`/api/reports/preview/status/${jobId}`),
+  confirm: (body) =>
+    api("/api/reports/preview/confirm", { method: "POST", body: JSON.stringify(body) }),
+  regenerateChart: (body) =>
+    api("/api/reports/preview/regenerate-chart", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
+export const previewApi = {
+  create: (formData) =>
+    api("/api/reports/preview", { method: "POST", body: formData, headers: headers(false) }),
+  jobStatus: (jobId) => api(`/api/reports/preview/status/${jobId}`),
+  confirm: (body) =>
+    api("/api/reports/preview/confirm", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  regenerateChart: (body) =>
+    api("/api/reports/preview/regenerate-chart", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
 
 export const keysApi = {
@@ -93,7 +167,7 @@ export const preferencesApi = {
 };
 
 export const adminApi = {
-  checkAdmin: () => api("/admin/health/all"),
+  checkAdmin: (opts = {}) => api("/admin/health/all", opts),
   users: (params) => api(`/admin/users${qs(params)}`),
   user: (id) => api(`/admin/users/${id}`),
   block: (id) => api(`/admin/users/${id}/block`, { method: "POST" }),
@@ -108,6 +182,12 @@ export const adminApi = {
   seedFixes: () => api("/admin/self-healing/seed-fixes?overwrite=true", { method: "POST" }),
   rebuildIndex: () => api("/admin/self-healing/rebuild-index", { method: "POST" }),
   deleteFix: (id) => api(`/admin/self-healing/fixes/${id}`, { method: "DELETE" }),
+  stripeSubscriptions: (params) => api(`/admin/payments/subscriptions${qs(params)}`),
+  stripeRevenue: (params) => api(`/admin/payments/revenue${qs(params)}`),
+  stripeRefund: (id) => api(`/admin/payments/refund/${id}`, { method: "POST" }),
+  payments: (params) => api(`/admin/payments/yookassa${qs(params)}`),
+  payment: (id) => api(`/admin/payments/yookassa/${id}`),
+  refundPayment: (id) => api(`/admin/payments/yookassa/refund/${id}`, { method: "POST" }),
   logs: (params) => api(`/admin/logs${qs(params)}`),
   downloadLogs: async (params) => {
     const url = `${API_BASE}/admin/logs/download${qs(params)}`;

@@ -14,11 +14,13 @@ from fastapi.staticfiles import StaticFiles
 from app.agents.parser import save_upload, validate_request
 from app.celery_app import celery_app
 from app.config.output_formats import EXTERNAL_FORMATS, resolve_output_format
-from app.db.database import get_usage_count, log_history, resolve_email_for_user
+from app.db.database import log_history, resolve_email_for_user
 from app.db.init_db import run_migrations
 from app.middleware.auth import APIKeyAuthMiddleware
+from app.middleware.usage_limit import UsageLimitMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
+from app.payments.usage_tracker import consume_report_slot
 from app.self_healing.init_kb import init_knowledge_base
 from app.utils.metrics import get_metrics_payload, start_background_gauge_updaters
 from app.utils.metrics_middleware import MetricsMiddleware
@@ -35,10 +37,17 @@ from app.routers import (
     api_keys,
     dashboard,
     preferences,
+    preview,
     reports_api,
     voice,
     webhooks,
 )
+from app.routers.payments_yookassa import admin_router as yookassa_admin_router
+from app.routers.payments_yookassa import router as yookassa_payments_router
+from app.routers.payments import admin_router as stripe_admin_router
+from app.routers.payments import router as stripe_payments_router
+from app.webhooks.yookassa_webhook import router as yookassa_webhook_router
+from app.webhooks.stripe_webhook import router as stripe_webhook_router
 from app.tasks import generate_report
 from app.voice.config import voice_available
 from app.voice.redis_store import get_voice_status, load_partial_state
@@ -78,6 +87,7 @@ app = FastAPI(
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(UsageLimitMiddleware)
 app.add_middleware(APIKeyAuthMiddleware)
 
 app.include_router(admin.router)
@@ -87,8 +97,15 @@ app.include_router(voice.router)
 app.include_router(admin_self_healing.router)
 app.include_router(admin_webhooks.router)
 app.include_router(webhooks.router)
+app.include_router(yookassa_payments_router)
+app.include_router(yookassa_admin_router)
+app.include_router(yookassa_webhook_router)
+app.include_router(stripe_payments_router)
+app.include_router(stripe_admin_router)
+app.include_router(stripe_webhook_router)
 app.include_router(dashboard.router)
 app.include_router(reports_api.router)
+app.include_router(preview.router)
 
 
 def _download_url_for_format(task_id: str, output_format: str) -> str:
@@ -241,6 +258,13 @@ async def generate_report_endpoint(
         except AgentError as exc:
             raise HTTPException(status_code=400, detail=exc.message) from exc
 
+    usage_count = 0
+    if user_id:
+        # Enforce monthly report limit before the user creates the next report.
+        # This consumes one “slot” in subscriptions.used_reports.
+        slot = consume_report_slot(user_id=user_id, desired_output_format=resolved_format)
+        usage_count = slot.used_reports
+
     task = generate_report.delay(
         email=email_clean,
         sheets_url=sheets_url_clean,
@@ -249,9 +273,7 @@ async def generate_report_endpoint(
         output_format=resolved_format,
     )
 
-    usage_count = 0
     if user_id:
-        usage_count = get_usage_count(user_id) + 1
         log_history(
             user_id,
             f"POST /generate_report format={resolved_format}",
@@ -275,6 +297,32 @@ async def generate_report_endpoint(
         user_id=user_id,
         usage_count=usage_count,
     )
+
+
+def _redirect_to_payment_hash(request: Request, *, hash_path: str) -> RedirectResponse:
+    query = str(request.url.query).strip()
+    suffix = f"?{query}" if query else ""
+    return RedirectResponse(url=f"/app{hash_path}{suffix}", status_code=302)
+
+
+@app.get("/payment/success")
+async def payment_success_page(request: Request) -> RedirectResponse:
+    return _redirect_to_payment_hash(request, hash_path="#/payment/success")
+
+
+@app.get("/payment/cancel")
+async def payment_cancel_page(request: Request) -> RedirectResponse:
+    return _redirect_to_payment_hash(request, hash_path="#/payment/cancel")
+
+
+@app.get("/success")
+async def stripe_success_redirect(request: Request) -> RedirectResponse:
+    return _redirect_to_payment_hash(request, hash_path="#/success")
+
+
+@app.get("/cancel")
+async def stripe_cancel_redirect(request: Request) -> RedirectResponse:
+    return _redirect_to_payment_hash(request, hash_path="#/cancel")
 
 
 def _get_task_result_or_raise(task_id: str) -> dict:

@@ -24,6 +24,13 @@ EXEMPT_PATHS = frozenset(
         "/openapi.json",
         "/redoc",
         "/api/keys/generate",
+        "/payment/success",
+        "/payment/cancel",
+        "/success",
+        "/cancel",
+        "/webhooks/yookassa",
+        "/webhooks/stripe",
+        "/api/payments/prices",
     }
 )
 

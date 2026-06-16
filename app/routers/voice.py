@@ -8,7 +8,8 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from app.agents.context_loader import get_user_preferences
-from app.db.database import get_usage_count, log_history, resolve_email_for_user
+from app.db.database import log_history, resolve_email_for_user
+from app.payments.usage_tracker import consume_report_slot
 from app.tasks import generate_report, generate_voice_report
 from app.voice.config import voice_available, voice_enabled
 from app.voice.models import VoiceClarifyRequest, VoiceClarifyResponse, VoiceGenerateReportResponse
@@ -104,8 +105,6 @@ async def voice_generate_report(
             user_id=user_id,
         )
 
-        usage_count = get_usage_count(user_id) + 1
-
         if result.status == "needs_clarification":
             task_id = new_clarification_task_id()
             save_partial_state(
@@ -136,9 +135,13 @@ async def voice_generate_report(
                 clarification_question=result.clarification_question,
                 partial_intent=result.intent,
                 user_id=user_id,
-                usage_count=usage_count,
+                usage_count=0,
                 transcription_error=result.transcription_error,
             )
+
+        output_format = (result.intent or {}).get("output_format") or "pdf"
+        slot = consume_report_slot(user_id=user_id, desired_output_format=output_format)
+        usage_count = slot.used_reports
 
         celery_task = generate_voice_report.delay(
             audio_file_path=audio_path,
@@ -233,6 +236,9 @@ async def voice_clarify(request: Request, body: VoiceClarifyRequest) -> VoiceCla
             )
 
         delete_partial_state(body.task_id)
+
+        output_format = (result.intent or {}).get("output_format") or "pdf"
+        consume_report_slot(user_id=user_id, desired_output_format=output_format)
 
         celery_task = generate_voice_report.delay(
             audio_file_path=audio_path,

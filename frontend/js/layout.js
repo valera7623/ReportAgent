@@ -7,11 +7,14 @@ const userNav = [
   { path: "/reports", label: "Отчёты", icon: "📄" },
   { path: "/keys", label: "API-ключи", icon: "🔑" },
   { path: "/webhooks", label: "Вебхуки", icon: "🔗" },
+  { path: "/pricing", label: "Тарифы", icon: "💳" },
+  { path: "/subscription", label: "Подписка", icon: "⭐" },
   { path: "/preferences", label: "Настройки", icon: "⚙️" },
 ];
 
 const adminNav = [
   { path: "/admin/users", label: "Пользователи", icon: "👥" },
+  { path: "/admin/payments", label: "Платежи", icon: "💳" },
   { path: "/admin/health", label: "Здоровье", icon: "💚" },
   { path: "/admin/celery", label: "Celery", icon: "📋" },
   { path: "/admin/self-healing", label: "Self-Healing", icon: "🔧" },

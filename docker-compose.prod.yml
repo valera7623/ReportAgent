@@ -25,6 +25,7 @@ services:
       - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
       - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
       - FORMATTED_DIR=/app/storage/formatted
+      - PREVIEW_DIR=/app/storage/temp
       - DEFAULT_OUTPUT_FORMAT=${DEFAULT_OUTPUT_FORMAT:-pdf}
       - ALLOWED_OUTPUT_FORMATS=${ALLOWED_OUTPUT_FORMATS:-pdf,excel,pptx,notion,google_slides}
       - NOTION_INTEGRATION_TOKEN=${NOTION_INTEGRATION_TOKEN:-}
@@ -63,6 +64,7 @@ services:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/formatted:/app/storage/formatted
       - ./storage/uploads:/app/storage/uploads
+      - ./storage/temp:/app/storage/temp
       - ./logs:/app/logs
       - ./app/data:/app/app/data
       - ./chroma_data:/app/chroma_data
@@ -120,6 +122,7 @@ services:
       - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
       - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
       - FORMATTED_DIR=/app/storage/formatted
+      - PREVIEW_DIR=/app/storage/temp
       - DEFAULT_OUTPUT_FORMAT=${DEFAULT_OUTPUT_FORMAT:-pdf}
       - ALLOWED_OUTPUT_FORMATS=${ALLOWED_OUTPUT_FORMATS:-pdf,excel,pptx,notion,google_slides}
       - NOTION_INTEGRATION_TOKEN=${NOTION_INTEGRATION_TOKEN:-}
@@ -151,6 +154,7 @@ services:
       - ./storage/pdfs:/app/storage/pdfs
       - ./storage/formatted:/app/storage/formatted
       - ./storage/uploads:/app/storage/uploads
+      - ./storage/temp:/app/storage/temp
       - ./logs:/app/logs
       - ./app/data:/app/app/data
       - ./chroma_data:/app/chroma_data

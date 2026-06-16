@@ -88,7 +88,7 @@ if [[ "$OBSERVABILITY_HOST_METRICS" == "true" ]]; then
 fi
 
 mkdir -p \
-  app/data storage/pdfs storage/uploads storage/formatted logs traefik/acme \
+  app/data storage/pdfs storage/uploads storage/formatted storage/temp logs traefik/acme \
   chroma_data \
   prometheus alertmanager \
   grafana/provisioning/datasources grafana/provisioning/dashboards grafana/dashboards

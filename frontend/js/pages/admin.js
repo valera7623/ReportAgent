@@ -132,11 +132,21 @@ export async function renderAdminUserDetail(root, userId) {
 /* --- Health --- */
 let healthTimer = null;
 
+export function stopHealthPolling() {
+  if (healthTimer) {
+    clearInterval(healthTimer);
+    healthTimer = null;
+  }
+}
+
 export async function renderAdminHealth(root) {
   mountShell(root, "Здоровье", loadingHtml());
-  if (healthTimer) clearInterval(healthTimer);
+  stopHealthPolling();
 
   async function load() {
+    const current = (location.hash.replace(/^#/, "") || "/dashboard").split("?")[0];
+    if (current !== "/admin/health") return;
+
     try {
       const [health, metrics] = await Promise.all([adminApi.health(), adminApi.system()]);
       const services = Object.entries(health.services)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import sqlite3
 from pathlib import Path
 
 from app.auth.key_management import migrate_legacy_api_keys
@@ -11,6 +13,21 @@ from app.utils.logger import get_logger
 logger = get_logger("init_db", "log_api.log")
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
+_ADD_COLUMN_RE = re.compile(r"^\s*ALTER\s+TABLE\s+.+\s+ADD\s+COLUMN\s+", re.IGNORECASE)
+
+
+def _execute_migration_sql(conn: sqlite3.Connection, sql: str, filename: str) -> None:
+    """Run migration statements; ignore duplicate ADD COLUMN on re-apply."""
+    statements = [s.strip() for s in sql.split(";") if s.strip()]
+    for statement in statements:
+        try:
+            conn.execute(statement)
+        except sqlite3.OperationalError as exc:
+            msg = str(exc).lower()
+            if _ADD_COLUMN_RE.match(statement) and "duplicate column name" in msg:
+                logger.warning("Migration %s skipped existing column: %s", filename, exc)
+                continue
+            raise
 
 
 def run_migrations() -> None:
@@ -48,7 +65,7 @@ def run_migrations() -> None:
                 continue
 
             sql = migration_path.read_text(encoding="utf-8")
-            conn.executescript(sql)
+            _execute_migration_sql(conn, sql, filename)
             conn.execute(
                 "INSERT INTO schema_migrations (filename) VALUES (?)",
                 (filename,),

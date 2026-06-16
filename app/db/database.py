@@ -142,7 +142,17 @@ def _parse_preferences_row(row: sqlite3.Row | None) -> dict[str, Any]:
             if "default_output_format" in row.keys() and row["default_output_format"]
             else defaults["default_output_format"]
         ),
+        "last_plan_notification_shown": (
+            row["last_plan_notification_shown"]
+            if "last_plan_notification_shown" in row.keys()
+            else None
+        ),
         "extra": extra if isinstance(extra, dict) else {},
+        "last_plan_notification_shown": (
+            row["last_plan_notification_shown"]
+            if "last_plan_notification_shown" in row.keys()
+            else None
+        ),
     }
 
 
@@ -244,6 +254,7 @@ def update_user_preferences(user_id: str, updates: dict[str, Any]) -> dict[str, 
         "company_logo_url",
         "timezone",
         "default_output_format",
+        "last_plan_notification_shown",
         "extra",
     }
     filtered = {k: v for k, v in updates.items() if k in allowed and v is not None}

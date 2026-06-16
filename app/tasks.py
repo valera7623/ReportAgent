@@ -19,6 +19,7 @@ from app.db.database import get_user_by_api_key, update_history_task_result
 from app.models.schemas import AgentError
 from app.voice.orchestrator import process_voice
 from app.voice.storage import delete_voice_file
+from app.payments.usage_tracker import check_report_limit
 from app.utils.logger import get_logger
 from app.utils.metrics import report_generation_duration_seconds
 from app.webhook.dispatcher import build_webhook_payload, fire_report_webhooks
@@ -256,10 +257,24 @@ def generate_report(
     logger.info("Task %s started (email=%s, format=%s)", task_id, email or "none", output_format or "default")
 
     user_id = _resolve_user_id(api_key)
+    if user_id and not check_report_limit(user_id, slot_reserved=True):
+        logger.warning("Task %s rejected: report limit exceeded for user %s", task_id, user_id)
+        raise RuntimeError("Report limit exceeded")
+
     source_type = _source_type_label(sheets_url=sheets_url, file_path=file_path)
     prefs = get_user_preferences(api_key)
     fmt = resolve_output_format(output_format, prefs)
     started = time.perf_counter()
+
+    if user_id:
+        from app.payments.usage_tracker import get_remaining_reports
+
+        logger.debug(
+            "Task %s user %s remaining reports after API consumption: %s",
+            task_id,
+            user_id,
+            get_remaining_reports(user_id),
+        )
 
     try:
         result = _run_report_pipeline(
@@ -539,6 +554,72 @@ def learn_from_failures() -> dict[str, Any]:
     return {"status": "ok", "stale_count": len(stale), "generated": generated}
 
 
+@celery_app.task(bind=True, name="tasks.preview_generation")
+def preview_generation_task(
+    self,
+    preview_id: str,
+    user_id: str,
+    file_path: str | None = None,
+    sheets_url: str | None = None,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Async preview generation for large files."""
+    from datetime import datetime, timezone
+
+    from app.agents.context_loader import get_user_preferences
+    from app.preview.cache import store_job_result, store_preview
+    from app.preview.generator import PreviewGenerator
+    from app.utils.metrics import record_preview_generated
+
+    job_id = self.request.id or preview_id
+    prefs = get_user_preferences(api_key)
+    started = datetime.now(timezone.utc)
+
+    try:
+        gen = PreviewGenerator()
+        result = gen.generate_preview(
+            user_id=user_id,
+            file_path=file_path,
+            sheets_url=sheets_url,
+            preferences=prefs,
+            preview_id=preview_id,
+        )
+        cache_payload = result.pop("_cache_payload")
+        store_preview(preview_id, cache_payload, user_id)
+        duration = (datetime.now(timezone.utc) - started).total_seconds()
+        record_preview_generated(duration)
+
+        payload = {
+            "status": "ready",
+            "preview_id": preview_id,
+            "user_id": user_id,
+            "data": result["data"],
+            "expires_at": result["expires_at"],
+        }
+        store_job_result(job_id, payload)
+        return payload
+    except Exception as exc:
+        logger.exception("Preview generation failed for %s", preview_id)
+        payload = {
+            "status": "failed",
+            "preview_id": preview_id,
+            "user_id": user_id,
+            "error": str(exc),
+        }
+        store_job_result(job_id, payload)
+        raise
+
+
+@celery_app.task(name="tasks.cleanup_previews")
+def cleanup_previews() -> dict[str, int]:
+    """Remove expired preview cache entries and temp files."""
+    from app.preview.cache import cleanup_expired
+
+    removed = cleanup_expired()
+    logger.info("Preview cleanup removed %d expired preview(s)", removed)
+    return {"removed": removed}
+
+
 @celery_app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs) -> None:
     """Register Celery Beat schedule for queue length monitoring and self-healing learning."""
@@ -551,4 +632,9 @@ def setup_periodic_tasks(sender, **kwargs) -> None:
         3600.0,
         learn_from_failures.s(),
         name="learn-from-failures-every-hour",
+    )
+    sender.add_periodic_task(
+        600.0,
+        cleanup_previews.s(),
+        name="cleanup-previews-every-10m",
     )

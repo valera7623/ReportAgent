@@ -359,6 +359,39 @@ curl -X DELETE https://ваш-домен/api/preferences -H "X-API-Key: KEY"
 | `timezone`             | IANA, напр. `UTC`     | Метаданные (расширяемо)                     |
 | `default_output_format`| `pdf`, `excel`, `pptx`, `notion`, `google_slides` | Формат отчёта по умолчанию |
 
+## Preview before sending
+
+Перед генерацией полного отчёта пользователь может просмотреть **превью**: таблица (первые 50 строк), базовая статистика и графики. Данные хранятся в Redis **1 час** и **не** попадают в `history` до подтверждения.
+
+### Поток
+
+1. `POST /api/reports/preview` — загрузка файла или Google Sheets URL  
+2. Ответ: `preview_id`, `data` (headers, rows, summary, charts), `expires_at`  
+3. Графики: `GET /api/preview/chart/{preview_id}/{chart_index}` (PNG)  
+4. Смена типа графика: `POST /api/reports/preview/regenerate-chart`  
+5. Подтверждение: `POST /api/reports/preview/confirm` → полная генерация + email (опционально)
+
+Файлы **> 10 MB** обрабатываются асинхронно (Celery). Опрашивайте `GET /api/reports/preview/status/{job_id}`.
+
+### curl
+
+```bash
+curl -X POST https://ваш-домен/api/reports/preview \
+  -H "X-API-Key: $API_KEY" \
+  -F "file=@sample_sales.csv"
+
+curl -X POST https://ваш-домен/api/reports/preview/confirm \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"preview_id":"uuid","output_format":"pdf"}'
+```
+
+На **Дашборде** — блок «Новый отчёт» с модальным превью.
+
+```bash
+python scripts/test_preview.py --base-url http://localhost:8000
+```
+
 ## Output formats (Step 4)
 
 Поддерживаемые форматы: `pdf`, `excel`, `pptx`, `notion`, `google_slides` (настраивается через `ALLOWED_OUTPUT_FORMATS`).
@@ -753,6 +786,207 @@ python3 scripts/test_webhook.py --base-url https://ваш-домен --api-key "
 ```
 
 Логи: `logs/log_webhook.log`. Метрики: `webhook_attempts_total`, `webhook_duration_seconds`.
+
+## Payments (Stripe — primary)
+
+Интеграция подписок через [Stripe Checkout](https://stripe.com/docs/checkout). ЮKassa остаётся опциональной альтернативой для РФ (см. ниже).
+
+### Переменные окружения
+
+```bash
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID_MONTHLY=price_xxx
+STRIPE_PRICE_ID_YEARLY=price_yyy
+STRIPE_PRICE_ID_PAYG=price_zzz
+STRIPE_SUCCESS_URL=https://ваш-домен/success
+STRIPE_CANCEL_URL=https://ваш-домен/cancel
+
+FREEMIUM_REPORTS_LIMIT=5
+PREMIUM_REPORTS_LIMIT=100
+ENTERPRISE_REPORTS_LIMIT=1000
+```
+
+### Настройка Stripe Dashboard
+
+1. Создайте продукты и **Prices** (monthly / yearly / one-time PAYG).
+2. Скопируйте `price_...` в `STRIPE_PRICE_ID_*`.
+3. **Developers → Webhooks → Add endpoint**:
+   - URL: `https://ваш-домен/webhooks/stripe`
+   - События: `checkout.session.completed`, `customer.subscription.*`, `invoice.payment_succeeded`, `invoice.payment_failed`
+4. Скопируйте signing secret в `STRIPE_WEBHOOK_SECRET`.
+
+Эндпоинт `/webhooks/stripe` **без аутентификации**; при невалидной подписи возвращает **401**.
+
+### Тестовые карты (test mode)
+
+| Карта | Результат |
+|-------|-----------|
+| `4242 4242 4242 4242` | Успешная оплата |
+| `4000 0000 0000 0002` | Отклонена |
+
+Локально: `stripe listen --forward-to localhost:8000/webhooks/stripe`
+
+### API эндпоинты (Stripe)
+
+| Метод | Путь | Auth | Описание |
+|-------|------|------|----------|
+| `GET` | `/api/payments/prices` | нет | Каталог тарифов |
+| `POST` | `/api/payments/create-checkout` | `X-API-Key` | Checkout Session → `url` |
+| `GET` | `/api/payments/subscription` | `X-API-Key` | Текущая подписка |
+| `POST` | `/api/payments/cancel-subscription` | `X-API-Key` | Отмена в Stripe |
+| `POST` | `/webhooks/stripe` | нет | Webhook Stripe |
+| `GET` | `/admin/payments/subscriptions` | Admin | Список подписок |
+| `GET` | `/admin/payments/revenue` | Admin | Доход за период |
+| `POST` | `/admin/payments/refund/{payment_id}` | Admin | Возврат |
+
+Пример checkout:
+
+```bash
+curl -X POST "https://ваш-домен/api/payments/create-checkout" \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"price_id":"price_xxx"}'
+```
+
+Фронтенд: `/app#/pricing` (Stripe), `/app#/subscription`, `/app#/success`, `/app#/cancel`.
+
+### Миграция БД (Stripe)
+
+Файл: `app/db/migrations/008_add_stripe_integration.sql` — колонки `stripe_customer_id`, `stripe_subscription_id`, `provider`, `preferences.last_plan_notification_shown`.
+
+Таблицы `subscriptions` и `payments` созданы в `007_add_yookassa_tables.sql`.
+
+### Тестовый скрипт
+
+```bash
+pip install stripe
+STRIPE_SECRET_KEY=sk_test_... STRIPE_PRICE_ID_MONTHLY=price_xxx python3 scripts/test_payments.py
+```
+
+### Метрики
+
+- `payments_completed_total{provider="stripe"}`
+- `payments_failed_total{provider="stripe"}`
+- `active_subscriptions_total`
+- `monthly_recurring_revenue` (USD cents, последние 30 дней)
+
+---
+
+## ЮKassa Payments (optional, RU)
+
+Интеграция приёма оплаты подписок через [ЮKassa API v3](https://yookassa.ru/developers/using-api/interaction-format).
+
+### Переменные окружения
+
+```bash
+YOOKASSA_SHOP_ID=ваш_shop_id
+YOOKASSA_SECRET_KEY=ваш_секретный_ключ
+YOOKASSA_API_URL=https://api.yookassa.ru/v3
+YOOKASSA_RETURN_URL_SUCCESS=https://ваш-домен/payment/success
+YOOKASSA_RETURN_URL_CANCEL=https://ваш-домен/payment/cancel
+
+FREEMIUM_REPORTS_LIMIT=5
+PREMIUM_REPORTS_LIMIT=100
+ENTERPRISE_REPORTS_LIMIT=1000
+PRICE_PREMIUM_MONTHLY=1990      # 19.90 ₽ (копейки)
+PRICE_PREMIUM_YEARLY=19900      # 199.00 ₽
+PRICE_ENTERPRISE=9990           # 99.90 ₽
+```
+
+### Создание магазина (тестовый режим)
+
+1. Зарегистрируйтесь в [личном кабинете ЮKassa](https://yookassa.ru/).
+2. Создайте **тестовый магазин** (shopId + secret key выпускаются автоматически).
+3. Добавьте `YOOKASSA_SHOP_ID` и `YOOKASSA_SECRET_KEY` в `.env`.
+4. Для тестовых карт используйте:
+   - Mastercard: `5555 5555 5555 4444`
+   - Visa: `4111 1111 1111 1111`
+
+### HTTP-уведомления (webhooks)
+
+В кабинете: **Интеграция → HTTP-уведомления**
+
+| Параметр | Значение |
+|----------|----------|
+| URL | `https://ваш-домен/webhooks/yookassa` |
+| События | `payment.succeeded`, `payment.waiting_for_capture`, `payment.canceled` |
+
+Требования:
+- URL только по **HTTPS** (порт 443/8443)
+- Эндпоинт **без аутентификации** (исключён в `APIKeyAuthMiddleware`)
+- Проверка подписи: заголовок `Content-Signature: sha256=<hmac>` (HMAC-SHA256 от raw body + `YOOKASSA_SECRET_KEY`)
+- При невалидной подписи API возвращает **401**
+
+### Тарифы
+
+| План | Цена | Лимит отчётов / месяц |
+|------|------|------------------------|
+| Freemium | бесплатно | 5 |
+| Premium Monthly | 19.90 ₽ | 100 |
+| Premium Yearly | 199.00 ₽ | 100 (в месяц) |
+| Enterprise | 99.90 ₽ | 1000 + Notion/Google Slides |
+
+### API эндпоинты
+
+| Метод | Путь | Auth | Описание |
+|-------|------|------|----------|
+| `POST` | `/api/payments/yookassa/create` | `X-API-Key` | Создать платёж, вернуть `confirmation_url` |
+| `GET` | `/api/payments/yookassa/status/{payment_id}` | `X-API-Key` | Синхронизировать статус с ЮKassa |
+| `POST` | `/webhooks/yookassa` | нет | Входящие уведомления ЮKassa |
+| `GET` | `/admin/payments/yookassa` | `X-Admin-Key` | Список платежей |
+| `GET` | `/admin/payments/yookassa/{payment_id}` | `X-Admin-Key` | Детали платежа |
+| `POST` | `/admin/payments/yookassa/refund/{payment_id}` | `X-Admin-Key` | Возврат через `POST /v3/refunds` |
+
+Пример создания платежа:
+
+```bash
+curl -X POST "https://ваш-домен/api/payments/yookassa/create" \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"plan_type":"premium_monthly"}'
+```
+
+Ответ:
+
+```json
+{
+  "payment_id": "22d6d597-000f-5000-9000-145f6df21d6f",
+  "confirmation_url": "https://yoomoney.ru/checkout/payments/..."
+}
+```
+
+Фронтенд: `/app#/pricing` → редирект на `confirmation_url` → возврат на `/payment/success`.
+
+### Миграция БД
+
+Файл: `app/db/migrations/007_add_yookassa_tables.sql`
+
+Создаёт таблицы:
+- `subscriptions` (лимиты, `yookassa_payment_id`, `yookassa_payment_method`)
+- `payments` (история платежей, amount в **копейках**)
+
+> Если в вашей БД уже применена миграция `007_add_admin_audit_log.sql`, переименуйте файл ЮKassa в `008_add_yookassa_tables.sql` перед деплоем.
+
+### Метрики Prometheus
+
+| Метрика | Описание |
+|---------|----------|
+| `yookassa_payments_total{status}` | События платежей |
+| `yookassa_payments_amount_total` | Сумма успешных платежей (RUB) |
+| `active_subscriptions_total` | Активные платные подписки |
+
+### Тест
+
+```bash
+python3 scripts/test_yookassa.py \
+  --base-url http://localhost:8000 \
+  --api-key "$API_KEY" \
+  --plan-type premium_monthly
+```
+
+Логи: `logs/log_payment_yookassa.log`.
 
 ## Frontend API (Dashboard & Reports)
 

@@ -35,19 +35,20 @@ export async function renderLogin(root) {
 
       let isUser = false;
       let isAdmin = false;
+      const authOpts = { skipAuthRedirect: true };
 
       try {
-        await dashboardApi.stats({ skipAuthRedirect: true });
-        isUser = true;
-      } catch {
-        isUser = false;
-      }
-
-      try {
-        await adminApi.checkAdmin({ skipAuthRedirect: true });
+        await adminApi.checkAdmin(authOpts);
         isAdmin = true;
       } catch {
         isAdmin = false;
+      }
+
+      try {
+        await dashboardApi.stats(authOpts);
+        isUser = true;
+      } catch {
+        isUser = false;
       }
 
       if (!isUser && !isAdmin) {

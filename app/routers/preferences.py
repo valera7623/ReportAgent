@@ -27,6 +27,7 @@ class PreferencesResponse(BaseModel):
     company_logo_url: str | None = None
     timezone: str
     default_output_format: str = "pdf"
+    last_plan_notification_shown: str | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
