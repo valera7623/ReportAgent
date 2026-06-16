@@ -9,6 +9,7 @@ from typing import Annotated
 from celery.result import AsyncResult
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from app.agents.parser import save_upload, validate_request
 from app.celery_app import celery_app
@@ -412,4 +413,13 @@ async def agent_error_handler(_request, exc: AgentError) -> JSONResponse:
     return JSONResponse(
         status_code=400,
         content={"detail": exc.message, "agent": exc.agent},
+    )
+
+
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+if _FRONTEND_DIR.is_dir() and (_FRONTEND_DIR / "index.html").is_file():
+    app.mount(
+        "/app",
+        StaticFiles(directory=str(_FRONTEND_DIR), html=True),
+        name="frontend",
     )
