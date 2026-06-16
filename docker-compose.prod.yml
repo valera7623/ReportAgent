@@ -66,6 +66,7 @@ services:
       - ./logs:/app/logs
       - ./app/data:/app/app/data
       - ./chroma_data:/app/chroma_data
+      - ./frontend:/app/frontend:ro
       - ./secrets:/app/secrets:ro
     networks:
       - traefik_network
