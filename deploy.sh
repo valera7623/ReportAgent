@@ -47,7 +47,7 @@ fi
 if [[ -z "${ADMIN_API_KEY:-}" || "${ADMIN_API_KEY}" == "change-me-generate-on-deploy" ]]; then
   ADMIN_API_KEY="$(openssl rand -hex 24)"
   export ADMIN_API_KEY
-  echo "==> Generated ADMIN_API_KEY for self-healing admin API (add to .env): ${ADMIN_API_KEY}"
+  echo "==> Generated ADMIN_API_KEY for admin API (add to .env): ${ADMIN_API_KEY}"
 fi
 
 GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}"

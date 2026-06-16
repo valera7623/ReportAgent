@@ -73,12 +73,246 @@ curl -X POST https://ваш-домен/api/keys/generate \
 
 ```json
 {
-  "api_key": "…",
+  "id": "uuid-…",
+  "key": "ra_abc123…",
+  "key_prefix": "ra_abc12",
+  "name": "Default",
   "user_id": "uuid-…"
 }
 ```
 
-Сохраните `api_key` — он показывается **один раз** при создании.
+Сохраните `key` — полный ключ показывается **один раз** при создании. Новые ключи имеют префикс `ra_`.
+
+### API Key Management
+
+Управление несколькими ключами на одного пользователя. Ключи хранятся в БД только как SHA-256 хеш; в списках отображается только `key_prefix` (первые 8 символов).
+
+> **Важно:** полный ключ возвращается только при `POST /api/keys/generate` и `POST /api/keys/{id}/rotate`. Сохраните его сразу — повторно получить нельзя.
+
+#### Список ключей
+
+```bash
+curl https://ваш-домен/api/keys \
+  -H "X-API-Key: ваш_ключ"
+```
+
+```json
+{
+  "keys": [
+    {
+      "id": "uuid-1",
+      "key_prefix": "ra_abc12",
+      "name": "Production",
+      "created_at": "2026-01-01T10:00:00",
+      "last_used_at": "2026-01-15T09:00:00",
+      "expires_at": null,
+      "is_active": true,
+      "is_current": true
+    }
+  ]
+}
+```
+
+#### Создать дополнительный ключ (для существующего пользователя)
+
+```bash
+curl -X POST https://ваш-домен/api/keys/generate \
+  -H "X-API-Key: ваш_ключ" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "CI/CD", "expires_at": "2026-12-31T23:59:59Z"}'
+```
+
+`expires_at` опционален (`null` = бессрочный).
+
+#### Отозвать ключ
+
+```bash
+curl -X DELETE https://ваш-домен/api/keys/{key_id} \
+  -H "X-API-Key: ваш_ключ"
+```
+
+Нельзя отозвать последний активный ключ (ответ `400`). Отозванные ключи не удаляются — `is_active` становится `false`.
+
+#### Ротация ключа
+
+Сгенерировать новый ключ и деактивировать старый (удобно при компрометации):
+
+```bash
+curl -X POST https://ваш-домен/api/keys/{key_id}/rotate \
+  -H "X-API-Key: ваш_ключ" \
+  -H "Content-Type: application/json" \
+  -d '{"new_name": "Production (rotated)"}'
+```
+
+```json
+{
+  "old_key_prefix": "ra_abc12",
+  "new_key": "ra_def456…",
+  "new_key_id": "uuid-2"
+}
+```
+
+Сохраните `new_key` — он показывается один раз.
+
+#### Переименовать ключ
+
+```bash
+curl -X PUT https://ваш-домен/api/keys/{key_id}/rename \
+  -H "X-API-Key: ваш_ключ" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Staging"}'
+```
+
+#### Обратная совместимость
+
+Старые ключи из поля `users.api_key` продолжают работать. При первом запуске после обновления они автоматически переносятся в таблицу `api_keys` (имя `Legacy`).
+
+#### Тест
+
+```bash
+python scripts/test_api_keys.py --base-url http://localhost:8000
+```
+
+## Admin API
+
+> **Только для администратора.** Не используйте `ADMIN_API_KEY` в клиентских приложениях. Все действия логируются в `logs/log_admin.log` и таблицу `audit_log`.
+
+### Генерация ADMIN_API_KEY
+
+При первом деплое `./deploy.sh` автоматически генерирует ключ, если в `.env` стоит placeholder:
+
+```bash
+ADMIN_API_KEY=change-me-generate-on-deploy
+```
+
+Или вручную:
+
+```bash
+openssl rand -hex 24
+```
+
+Добавьте значение в `.env` и перезапустите: `./deploy.sh`
+
+### Аутентификация
+
+Все эндпоинты `/admin/*` требуют заголовок:
+
+```http
+X-Admin-Key: ваш_admin_ключ
+```
+
+Альтернатива: `X-API-Key` с тем же значением `ADMIN_API_KEY` (для совместимости).
+
+Опционально ограничьте IP в `.env`:
+
+```bash
+ADMIN_ALLOWED_IPS=203.0.113.10,198.51.100.5
+```
+
+### Проверка доступа
+
+```bash
+curl -s https://ваш-домен/admin/health/all \
+  -H "X-Admin-Key: $ADMIN_API_KEY" | jq .
+```
+
+### Управление пользователями
+
+```bash
+# Список пользователей
+curl "https://ваш-домен/admin/users?page=1&limit=50&search=user@" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+
+# Детали пользователя
+curl "https://ваш-домен/admin/users/{user_id}" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+
+# Заблокировать (отзывает все ключи)
+curl -X POST "https://ваш-домен/admin/users/{user_id}/block" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+
+# Разблокировать (ключи не восстанавливаются)
+curl -X POST "https://ваш-домен/admin/users/{user_id}/unblock" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+
+# Удалить пользователя (каскадно: ключи, вебхуки, history)
+curl -X DELETE "https://ваш-домен/admin/users/{user_id}" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+```
+
+### Системное здоровье
+
+```bash
+curl https://ваш-домен/admin/health/all -H "X-Admin-Key: $ADMIN_API_KEY"
+curl https://ваш-домен/admin/health/system -H "X-Admin-Key: $ADMIN_API_KEY"
+```
+
+### Celery
+
+```bash
+curl https://ваш-домен/admin/celery/status -H "X-Admin-Key: $ADMIN_API_KEY"
+curl -X POST https://ваш-домен/admin/celery/purge-queue -H "X-Admin-Key: $ADMIN_API_KEY"
+curl -X POST https://ваш-домен/admin/celery/restart-worker -H "X-Admin-Key: $ADMIN_API_KEY"
+```
+
+### Self-healing
+
+```bash
+curl https://ваш-домен/admin/self-healing/stats -H "X-Admin-Key: $ADMIN_API_KEY"
+curl -X POST "https://ваш-домен/admin/self-healing/seed-fixes?overwrite=true" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+curl -X POST https://ваш-домен/admin/self-healing/rebuild-index \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+curl -X DELETE https://ваш-домен/admin/self-healing/fixes/{fix_id} \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+```
+
+Legacy-пути с подчёркиванием (`/admin/self_healing/...`) также поддерживаются.
+
+### Логи
+
+```bash
+curl "https://ваш-домен/admin/logs?level=ERROR&hours=24&limit=100" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+
+curl "https://ваш-домен/admin/logs/download?level=ERROR" \
+  -H "X-Admin-Key: $ADMIN_API_KEY" -o logs.zip
+
+curl -N "https://ваш-домен/admin/logs/stream?level=ERROR" \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+```
+
+### Метрики
+
+```bash
+curl https://ваш-домен/admin/metrics/summary -H "X-Admin-Key: $ADMIN_API_KEY"
+curl https://ваш-домен/admin/metrics/prometheus -H "X-Admin-Key: $ADMIN_API_KEY"
+curl https://ваш-домен/admin/metrics/grafana-dashboard -H "X-Admin-Key: $ADMIN_API_KEY"
+```
+
+### Rate limiting
+
+Пользовательские эндпоинты ограничены **100 запросов/минуту** по умолчанию (`RATE_LIMIT_REQUESTS_PER_MINUTE`).
+
+```bash
+curl https://ваш-домен/admin/rate-limits -H "X-Admin-Key: $ADMIN_API_KEY"
+
+curl -X PUT https://ваш-домен/admin/rate-limits/global \
+  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 200}'
+
+curl -X PUT https://ваш-домен/admin/rate-limits/user/{user_id} \
+  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 1000}'
+```
+
+### Тест
+
+```bash
+ADMIN_API_KEY=your_key python scripts/test_admin_api.py --base-url http://localhost:8000
+```
 
 ### Использовать ключ
 
@@ -318,7 +552,7 @@ curl -X POST https://ваш-домен/voice/clarify \
 # 1. ReportAgent API key (НЕ OpenAI key!)
 API_KEY=$(curl -s -X POST "https://ваш-домен/api/keys/generate" \
   -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com"}' | jq -r .api_key)
+  -d '{"email":"you@example.com"}' | jq -r .key)
 
 # 2. Убедитесь, что файл существует (curl error 26 = файл не найден)
 ls -la recording.m4a
@@ -490,6 +724,9 @@ curl -X POST "https://ваш-домен/api/webhooks/register" \
 |-------|------|----------|
 | `POST` | `/api/webhooks/register` | Зарегистрировать URL |
 | `GET` | `/api/webhooks` | Список вебхуков |
+| `GET` | `/api/dashboard/stats` | Статистика дашборда (30 дней) |
+| `GET` | `/api/reports` | История отчётов (пагинация) |
+| `DELETE` | `/api/reports/{task_id}` | Удалить отчёт и файлы |
 | `PUT` | `/api/webhooks/{id}` | Обновить url / events |
 | `POST` | `/api/webhooks/{id}/reactivate` | Включить после deactivate |
 | `DELETE` | `/api/webhooks/{id}` | Удалить |
@@ -516,6 +753,61 @@ python3 scripts/test_webhook.py --base-url https://ваш-домен --api-key "
 ```
 
 Логи: `logs/log_webhook.log`. Метрики: `webhook_attempts_total`, `webhook_duration_seconds`.
+
+## Frontend API (Dashboard & Reports)
+
+Эндпоинты для UI: статистика, список отчётов, удаление. Требуют `X-API-Key`.
+
+### `GET /api/dashboard/stats`
+
+```bash
+curl -s "https://ваш-домен/api/dashboard/stats" -H "X-API-Key: $API_KEY" | jq
+```
+
+```json
+{
+  "total_reports_last_30_days": 42,
+  "success_rate": 95.2,
+  "most_used_output_format": "pdf",
+  "average_generation_time_seconds": 3.4,
+  "active_webhooks_count": 2
+}
+```
+
+### `GET /api/reports?page=1&limit=20`
+
+```bash
+curl -s "https://ваш-домен/api/reports?page=1&limit=20" -H "X-API-Key: $API_KEY" | jq
+```
+
+```json
+{
+  "reports": [
+    {
+      "task_id": "abc-123",
+      "created_at": "2026-01-15 10:00:00",
+      "status": "SUCCESS",
+      "output_format": "pdf",
+      "download_url": "/tasks/abc-123/pdf",
+      "request_summary": "POST /generate_report format=pdf"
+    }
+  ],
+  "total": 120,
+  "page": 1,
+  "limit": 20
+}
+```
+
+Статус и `duration_seconds` обновляются в `history` при завершении Celery-задачи (`SUCCESS` / `FAILURE` / `PENDING`).
+
+### `DELETE /api/reports/{task_id}`
+
+```bash
+curl -X DELETE "https://ваш-домен/api/reports/abc-123" -H "X-API-Key: $API_KEY"
+# {"status":"deleted"}
+```
+
+Удаляет запись из `history` и каталоги `storage/pdfs/{task_id}/`, `storage/formatted/{task_id}/` (только свои отчёты).
 
 ## Monitoring with Prometheus & Grafana
 
@@ -836,7 +1128,11 @@ curl -OJ -H "X-API-Key: $API_KEY" "https://ваш-домен/tasks/${TASK_ID}/pd
 | `GET` | `/health` | Healthcheck |
 | `GET` | `/metrics` | Prometheus metrics (no auth) |
 | `GET` | `/docs`, `/redoc`, `/openapi.json` | Swagger / OpenAPI |
-| `POST` | `/api/keys/generate` | Создать API-ключ |
+| `POST` | `/api/keys/generate` | Создать API-ключ (онбординг или доп. ключ) |
+| `GET` | `/api/keys` | Список ключей (маскированные) |
+| `DELETE` | `/api/keys/{key_id}` | Отозвать ключ |
+| `POST` | `/api/keys/{key_id}/rotate` | Ротировать ключ |
+| `PUT` | `/api/keys/{key_id}/rename` | Переименовать ключ |
 
 ### Защищённые эндпоинты (требуют `X-API-Key`)
 
@@ -888,10 +1184,12 @@ Multipart form:
 ### `POST /api/keys/generate`
 
 ```json
-{ "email": "user@example.com" }
+{ "email": "user@example.com", "name": "My Key", "expires_at": "2026-12-31T23:59:59Z" }
 ```
 
-`email` опционален.
+`email` — только при первом онбординге (без `X-API-Key`). `name` и `expires_at` опциональны.
+
+См. также [API Key Management](#api-key-management) выше.
 
 ## Agents
 
@@ -911,12 +1209,15 @@ Pipeline: `context_loader` → `parser` → `analyst` → `visualizer` → `form
 
 | Таблица | Назначение |
 |---------|------------|
-| `users` | `id`, `api_key`, `email`, `last_used_at`, `is_active` |
+| `users` | `id`, `api_key` (deprecated), `email`, `last_used_at`, `is_active` |
+| `api_keys` | Несколько ключей на пользователя: `key_hash`, `key_prefix`, `name`, `expires_at`, `is_active` |
 | `preferences` | chart type, theme, default email, logo URL, timezone, **default_output_format** |
 | `history` | Аналитика запросов (`user_id`, `task_id`, summary) |
+| `audit_log` | Журнал админ-действий (`action`, `target`, `admin_ip`) |
+| `rate_limits` | Лимиты запросов (`__global__` и per-user) |
 
 - Файл: `app/data/users.db` (создаётся при старте)
-- Миграции: `app/db/migrations/001_init.sql` (применяются автоматически)
+- Миграции: `app/db/migrations/*.sql` (применяются автоматически, последняя: `007_add_admin_audit_log.sql`)
 - В Docker: volume `./app/data:/app/app/data`
 
 API-ключи в логах маскируются (`****abcd` — только последние 4 символа).
@@ -970,15 +1271,26 @@ ReportAgent/
 │   │   ├── orchestrator.py
 │   │   └── models.py
 │   ├── routers/
-│   │   ├── keys.py
+│   │   ├── admin.py
+│   │   ├── admin_self_healing.py
+│   │   ├── admin_webhooks.py
+│   │   ├── api_keys.py
 │   │   ├── preferences.py
 │   │   └── voice.py
+│   ├── admin/
+│   │   ├── auth.py
+│   │   ├── dependency.py
+│   │   ├── rate_limiter.py
+│   │   ├── log_reader.py
+│   │   └── system_health.py
 │   ├── db/
 │   │   ├── database.py
+│   │   ├── admin_queries.py
 │   │   ├── init_db.py
 │   │   └── migrations/
 │   ├── middleware/
 │   │   ├── auth.py
+│   │   ├── rate_limit.py
 │   │   └── request_logging.py
 │   ├── models/
 │   ├── data/              # users.db (gitignored)
@@ -988,6 +1300,8 @@ ReportAgent/
 │   └── requirements.txt
 ├── scripts/
 │   ├── test_api_key.py
+│   ├── test_api_keys.py
+│   ├── test_admin_api.py
 │   ├── test_voice.py
 │   ├── test_alerts.py
 │   ├── setup-grafana.sh

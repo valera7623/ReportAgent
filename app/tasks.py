@@ -15,7 +15,7 @@ from app.agents.parser import run_parser
 from app.agents.visualizer import run_visualizer
 from app.celery_app import celery_app
 from app.config.output_formats import EXTERNAL_FORMATS, resolve_output_format
-from app.db.database import get_user_by_api_key
+from app.db.database import get_user_by_api_key, update_history_task_result
 from app.models.schemas import AgentError
 from app.voice.orchestrator import process_voice
 from app.voice.storage import delete_voice_file
@@ -114,6 +114,25 @@ def _resolve_user_id(api_key: str | None) -> str | None:
         return None
     user = get_user_by_api_key(api_key)
     return user["id"] if user else None
+
+
+def _record_history_result(
+    user_id: str | None,
+    task_id: str,
+    *,
+    status: str,
+    duration_seconds: float,
+) -> None:
+    if user_id and task_id:
+        try:
+            update_history_task_result(
+                user_id,
+                task_id,
+                status=status,
+                duration_seconds=round(duration_seconds, 2),
+            )
+        except Exception as exc:
+            logger.warning("Failed to update history for task %s: %s", task_id, exc)
 
 
 def _fire_success_webhooks(
@@ -252,35 +271,41 @@ def generate_report(
             output_format=output_format,
         )
         logger.info("Task %s completed successfully (format=%s)", task_id, result.get("output_format"))
+        duration = time.perf_counter() - started
+        _record_history_result(user_id, task_id, status="SUCCESS", duration_seconds=duration)
         _fire_success_webhooks(
             task_id=task_id,
             user_id=user_id,
             result=result,
             source_type=source_type,
-            duration_seconds=time.perf_counter() - started,
+            duration_seconds=duration,
         )
         return result
 
     except AgentError as exc:
         logger.error("Task %s failed in agent '%s': %s", task_id, exc.agent, exc.message)
+        duration = time.perf_counter() - started
+        _record_history_result(user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
             user_id=user_id,
             error_message=f"[{exc.agent}] {exc.message}",
             source_type=source_type,
-            duration_seconds=time.perf_counter() - started,
+            duration_seconds=duration,
             output_format=fmt,
         )
         raise RuntimeError(f"[{exc.agent}] {exc.message}") from exc
 
     except Exception as exc:
         logger.exception("Task %s failed with unexpected error", task_id)
+        duration = time.perf_counter() - started
+        _record_history_result(user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
             user_id=user_id,
             error_message=str(exc),
             source_type=source_type,
-            duration_seconds=time.perf_counter() - started,
+            duration_seconds=duration,
             output_format=fmt,
         )
         raise
@@ -352,12 +377,14 @@ def generate_voice_report(
         result["voice_transcript"] = transcript
         result["voice_intent"] = intent
         logger.info("Voice task %s completed successfully", task_id)
+        duration = time.perf_counter() - started
+        _record_history_result(resolved_user_id, task_id, status="SUCCESS", duration_seconds=duration)
         _fire_success_webhooks(
             task_id=task_id,
             user_id=resolved_user_id,
             result=result,
             source_type=source_type,
-            duration_seconds=time.perf_counter() - started,
+            duration_seconds=duration,
         )
         return result
 
@@ -375,24 +402,28 @@ def generate_voice_report(
 
     except AgentError as exc:
         logger.error("Voice task %s failed in agent '%s': %s", task_id, exc.agent, exc.message)
+        duration = time.perf_counter() - started
+        _record_history_result(resolved_user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
             user_id=resolved_user_id,
             error_message=f"[{exc.agent}] {exc.message}",
             source_type=source_type,
-            duration_seconds=time.perf_counter() - started,
+            duration_seconds=duration,
             output_format=output_fmt,
         )
         raise RuntimeError(f"[{exc.agent}] {exc.message}") from exc
 
     except Exception as exc:
         logger.exception("Voice task %s failed with unexpected error", task_id)
+        duration = time.perf_counter() - started
+        _record_history_result(resolved_user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
             user_id=resolved_user_id,
             error_message=str(exc),
             source_type=source_type,
-            duration_seconds=time.perf_counter() - started,
+            duration_seconds=duration,
             output_format=output_fmt,
         )
         raise

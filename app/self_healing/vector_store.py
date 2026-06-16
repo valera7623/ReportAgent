@@ -315,6 +315,97 @@ class ErrorKnowledgeBase:
                 stale.append(record)
         return stale
 
+    def delete_fix(self, fix_id: str) -> bool:
+        """Remove a fix record from ChromaDB."""
+        fetched = self._collection.get(ids=[fix_id])
+        if not fetched.get("ids"):
+            return False
+        self._collection.delete(ids=[fix_id])
+        logger.info("Deleted fix record %s", fix_id)
+        return True
+
+    def rebuild_index(self) -> int:
+        """Re-fetch all records (ChromaDB persistent client auto-manages index)."""
+        count = self._collection.count()
+        logger.info("ChromaDB index verified, %d records", count)
+        return count
+
+    def get_extended_stats(self) -> dict[str, Any]:
+        """Extended stats with top fixes and daily success trend."""
+        base = self.get_stats()
+        records = self.list_all()
+
+        fix_scores: dict[str, dict[str, Any]] = {}
+        daily: dict[str, dict[str, int]] = {}
+
+        for r in records:
+            fid = r.get("id", "")
+            score = r.get("success_count", 0) - r.get("fail_count", 0)
+            fix_scores[fid] = {
+                "fix_id": fid,
+                "error": (r.get("error_text") or "")[:80],
+                "agent": r.get("agent_name"),
+                "score": score,
+                "success_count": r.get("success_count", 0),
+            }
+            day = (r.get("last_used_at") or r.get("created_at") or "")[:10]
+            if day:
+                bucket = daily.setdefault(day, {"attempts": 0, "successes": 0})
+                bucket["attempts"] += r.get("success_count", 0) + r.get("fail_count", 0)
+                bucket["successes"] += r.get("success_count", 0)
+
+        top_fixes = sorted(fix_scores.values(), key=lambda x: x["score"], reverse=True)[:5]
+        top_errors = base.get("top_errors", [])[:5]
+        daily_trend = [
+            {
+                "date": d,
+                "attempts": v["attempts"],
+                "successes": v["successes"],
+                "success_rate": round(v["successes"] / v["attempts"], 4) if v["attempts"] else 0,
+            }
+            for d, v in sorted(daily.items())
+        ][-14:]
+
+        return {
+            **base,
+            "top_errors": top_errors,
+            "top_fixes": top_fixes,
+            "daily_success_trend": daily_trend,
+        }
+
+
+def force_seed_knowledge_base(*, overwrite: bool = False) -> tuple[int, int]:
+    """Load seed fixes. Returns (imported, skipped)."""
+    import json
+    from pathlib import Path
+
+    from app.self_healing.init_kb import SEED_FILE
+
+    kb = get_knowledge_base()
+    if kb is None:
+        return 0, 0
+
+    if not SEED_FILE.is_file():
+        return 0, 0
+
+    with open(SEED_FILE, encoding="utf-8") as fh:
+        seeds = json.load(fh)
+
+    imported = 0
+    skipped = 0
+    for entry in seeds:
+        fix_id = entry.get("id")
+        if not overwrite and fix_id and kb.get_record(fix_id):
+            skipped += 1
+            continue
+        try:
+            kb.add_error(entry)
+            imported += 1
+        except Exception as exc:
+            logger.warning("Seed import failed for %s: %s", fix_id, exc)
+            skipped += 1
+    return imported, skipped
+
 
 def get_knowledge_base() -> ErrorKnowledgeBase | None:
     """Return singleton knowledge base or None if ChromaDB unavailable."""

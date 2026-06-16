@@ -31,8 +31,8 @@ def main() -> int:
             return 1
 
         payload = resp.json()
-        api_key = payload["api_key"]
-        user_id = payload["user_id"]
+        api_key = payload.get("key") or payload.get("api_key")
+        user_id = payload.get("user_id")
         print(f"   user_id: {user_id}")
         print(f"   api_key: ****{api_key[-4:]}\n")
 

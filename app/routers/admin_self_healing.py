@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 import uuid
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.admin.dependency import admin_required
 from app.self_healing.vector_store import get_knowledge_base
 from app.utils.logger import get_logger
 
@@ -47,20 +47,7 @@ class StatsResponse(BaseModel):
     most_healed_agents: list[dict[str, Any]]
 
 
-def verify_admin_key(x_admin_key: Annotated[str | None, Header()] = None) -> None:
-    """Validate ADMIN_API_KEY from X-Admin-Key header."""
-    expected = os.getenv("ADMIN_API_KEY", "").strip()
-    if not expected:
-        raise HTTPException(
-            status_code=503,
-            detail="ADMIN_API_KEY not configured on server",
-        )
-    if not x_admin_key or x_admin_key != expected:
-        logger.warning("Rejected admin self-healing request (invalid key)")
-        raise HTTPException(status_code=403, detail="Invalid admin API key")
-
-
-@router.post("/fixes", response_model=AddFixResponse, dependencies=[Depends(verify_admin_key)])
+@router.post("/fixes", response_model=AddFixResponse, dependencies=[Depends(admin_required)])
 async def add_manual_fix(body: AddFixRequest) -> AddFixResponse:
     """
     Add a manual fix candidate to the knowledge base.
@@ -99,7 +86,7 @@ async def add_manual_fix(body: AddFixRequest) -> AddFixResponse:
     )
 
 
-@router.post("/confirm/{fix_id}", response_model=ConfirmFixResponse, dependencies=[Depends(verify_admin_key)])
+@router.post("/confirm/{fix_id}", response_model=ConfirmFixResponse, dependencies=[Depends(admin_required)])
 async def confirm_fix(fix_id: str) -> ConfirmFixResponse:
     """Confirm that a fix works → sets was_successful=true."""
     kb = get_knowledge_base()
@@ -117,7 +104,7 @@ async def confirm_fix(fix_id: str) -> ConfirmFixResponse:
     )
 
 
-@router.get("/stats", response_model=StatsResponse, dependencies=[Depends(verify_admin_key)])
+@router.get("/stats", response_model=StatsResponse, dependencies=[Depends(admin_required)])
 async def get_stats() -> StatsResponse:
     """Return self-healing knowledge base statistics."""
     kb = get_knowledge_base()

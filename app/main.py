@@ -16,6 +16,7 @@ from app.config.output_formats import EXTERNAL_FORMATS, resolve_output_format
 from app.db.database import get_usage_count, log_history, resolve_email_for_user
 from app.db.init_db import run_migrations
 from app.middleware.auth import APIKeyAuthMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.self_healing.init_kb import init_knowledge_base
 from app.utils.metrics import get_metrics_payload, start_background_gauge_updaters
@@ -26,7 +27,17 @@ from app.models.schemas import (
     TaskState,
     TaskStatusResponse,
 )
-from app.routers import admin_self_healing, admin_webhooks, keys, preferences, voice, webhooks
+from app.routers import (
+    admin,
+    admin_self_healing,
+    admin_webhooks,
+    api_keys,
+    dashboard,
+    preferences,
+    reports_api,
+    voice,
+    webhooks,
+)
 from app.tasks import generate_report
 from app.voice.config import voice_available
 from app.voice.redis_store import get_voice_status, load_partial_state
@@ -59,20 +70,24 @@ app = FastAPI(
         "Receive by email or download via API. "
         "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
     ),
-    version="1.7.0",
+    version="1.8.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(APIKeyAuthMiddleware)
 
-app.include_router(keys.router)
+app.include_router(admin.router)
+app.include_router(api_keys.router)
 app.include_router(preferences.router)
 app.include_router(voice.router)
 app.include_router(admin_self_healing.router)
 app.include_router(admin_webhooks.router)
 app.include_router(webhooks.router)
+app.include_router(dashboard.router)
+app.include_router(reports_api.router)
 
 
 def _download_url_for_format(task_id: str, output_format: str) -> str:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.auth.key_management import migrate_legacy_api_keys
 from app.db.database import get_connection, resolve_db_path
 from app.utils.logger import get_logger
 
@@ -54,4 +55,5 @@ def run_migrations() -> None:
             )
             logger.info("Applied migration: %s", filename)
 
+    migrate_legacy_api_keys()
     logger.info("Database migrations complete")

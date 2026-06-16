@@ -9,7 +9,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from app.db.database import get_user_by_api_key, mask_api_key, update_last_used_at
+from app.auth.key_management import verify_api_key
+from app.db.database import mask_api_key
 from app.utils.logger import get_logger
 
 logger = get_logger("auth_middleware", "log_api.log")
@@ -43,6 +44,15 @@ def _auth_disabled() -> bool:
     return os.getenv("DISABLE_AUTH", "").lower() in ("1", "true", "yes")
 
 
+def _client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return None
+
+
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     """Validate X-API-Key header and attach user context to request.state."""
 
@@ -56,6 +66,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         if _is_exempt(path):
             request.state.user_id = None
             request.state.api_key = None
+            request.state.key_id = None
             return await call_next(request)
 
         api_key = request.headers.get("X-API-Key")
@@ -64,6 +75,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
             if _auth_disabled():
                 request.state.user_id = None
                 request.state.api_key = None
+                request.state.key_id = None
                 logger.debug("Auth disabled; allowing unauthenticated request to %s", path)
                 return await call_next(request)
             return JSONResponse(
@@ -71,8 +83,8 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Invalid or inactive API key"},
             )
 
-        user = get_user_by_api_key(api_key)
-        if user is None or not user["is_active"]:
+        auth = verify_api_key(api_key, client_ip=_client_ip(request))
+        if auth is None:
             logger.warning(
                 "Rejected API key %s for %s %s",
                 mask_api_key(api_key),
@@ -84,14 +96,15 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Invalid or inactive API key"},
             )
 
-        update_last_used_at(user["id"])
-        request.state.user_id = user["id"]
+        request.state.user_id = auth["user_id"]
         request.state.api_key = api_key
+        request.state.key_id = auth.get("key_id")
 
         logger.debug(
-            "Authenticated user %s (key %s) for %s %s",
-            user["id"],
+            "Authenticated user %s (key %s, source=%s) for %s %s",
+            auth["user_id"],
             mask_api_key(api_key),
+            auth.get("source", "unknown"),
             request.method,
             path,
         )

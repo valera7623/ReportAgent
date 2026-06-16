@@ -142,6 +142,59 @@ webhook_retries_total = Counter(
     ["event"],
 )
 
+api_key_generated_total = Counter(
+    "api_key_generated_total",
+    "Total API keys generated",
+)
+
+api_key_revoked_total = Counter(
+    "api_key_revoked_total",
+    "Total API keys revoked",
+)
+
+api_key_authentication_failures_total = Counter(
+    "api_key_authentication_failures_total",
+    "API key authentication failures",
+    ["reason"],
+)
+
+admin_requests_total = Counter(
+    "admin_requests_total",
+    "Admin API requests",
+    ["endpoint", "status"],
+)
+
+user_blocked_total = Counter(
+    "user_blocked_total",
+    "Users blocked by admin",
+)
+
+user_deleted_total = Counter(
+    "user_deleted_total",
+    "Users deleted by admin",
+)
+
+celery_purge_total = Counter(
+    "celery_purge_total",
+    "Celery queue purge operations",
+)
+
+users_total = Gauge(
+    "users_total",
+    "Total registered users",
+)
+
+active_users_total = Gauge(
+    "active_users_total",
+    "Total active (non-blocked) users",
+)
+
+rate_limit_exceeded_total = Counter(
+    "rate_limit_exceeded_total",
+    "Rate limit exceeded events",
+    ["user_id_hash"],
+)
+
 _background_started = False
 _background_lock = threading.Lock()
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -213,6 +266,7 @@ def refresh_all_gauges() -> None:
     refresh_active_users()
     refresh_database_size()
     refresh_knowledge_base_size()
+    refresh_users_gauges()
 
 
 def _background_loop(interval: float, func: Callable[[], None], name: str) -> None:
@@ -326,6 +380,48 @@ def record_webhook_attempt(event: str, success: bool, duration_seconds: float) -
 def record_webhook_retry(event: str) -> None:
     """Increment webhook retry counter."""
     webhook_retries_total.labels(event=event).inc()
+
+
+def record_api_key_generated() -> None:
+    """Increment API key generation counter."""
+    api_key_generated_total.inc()
+
+
+def record_api_key_revoked() -> None:
+    """Increment API key revocation counter."""
+    api_key_revoked_total.inc()
+
+
+def record_api_key_auth_failure(reason: str) -> None:
+    """Increment API key authentication failure counter."""
+    api_key_authentication_failures_total.labels(reason=reason).inc()
+
+
+def record_admin_request(endpoint: str, status: int) -> None:
+    admin_requests_total.labels(endpoint=endpoint, status=str(status)).inc()
+
+
+def record_user_blocked() -> None:
+    user_blocked_total.inc()
+
+
+def record_user_deleted() -> None:
+    user_deleted_total.inc()
+
+
+def record_rate_limit_exceeded(user_id: str) -> None:
+    rate_limit_exceeded_total.labels(user_id_hash=hash_user_id(user_id)).inc()
+
+
+def refresh_users_gauges() -> None:
+    try:
+        from app.db.admin_queries import count_all_users
+
+        total, active = count_all_users()
+        users_total.set(total)
+        active_users_total.set(active)
+    except Exception as exc:
+        logger.warning("Failed to refresh users gauges: %s", exc)
 
 
 def record_voice_transcription(success: bool) -> None:
