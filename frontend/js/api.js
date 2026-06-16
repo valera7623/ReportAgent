@@ -13,13 +13,7 @@ function headers(json = true) {
   return h;
 }
 
-async function handleResponse(res) {
-  if (res.status === 401) {
-    logout();
-    navigate("/login");
-    throw new Error("Сессия истекла. Войдите снова.");
-  }
-  if (res.status === 204) return null;
+async function handleResponse(res, { skipAuthRedirect = false } = {}) {
   const text = await res.text();
   let data = null;
   if (text) {
@@ -29,26 +23,40 @@ async function handleResponse(res) {
       data = text;
     }
   }
+
+  const detail = data?.detail;
+  const serverMsg =
+    typeof detail === "string"
+      ? detail
+      : Array.isArray(detail)
+        ? detail.map((d) => d.msg || d).join(", ")
+        : null;
+
+  if (res.status === 401) {
+    if (!skipAuthRedirect) {
+      logout();
+      navigate("/login");
+      throw new Error("Сессия истекла. Войдите снова.");
+    }
+    throw new Error(serverMsg || "Неверный API-ключ");
+  }
+
+  if (res.status === 204) return null;
+
   if (!res.ok) {
-    const detail = data?.detail;
-    const msg =
-      typeof detail === "string"
-        ? detail
-        : Array.isArray(detail)
-          ? detail.map((d) => d.msg || d).join(", ")
-          : res.statusText;
-    throw new Error(msg || `HTTP ${res.status}`);
+    throw new Error(serverMsg || res.statusText || `HTTP ${res.status}`);
   }
   return data;
 }
 
 export async function api(path, options = {}) {
+  const { skipAuthRedirect = false, ...fetchOptions } = options;
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
-    ...options,
-    headers: { ...headers(!(options.body instanceof FormData)), ...options.headers },
+    ...fetchOptions,
+    headers: { ...headers(!(fetchOptions.body instanceof FormData)), ...fetchOptions.headers },
   });
-  return handleResponse(res);
+  return handleResponse(res, { skipAuthRedirect });
 }
 
 export const dashboardApi = {

@@ -31,6 +31,11 @@ export async function renderRoute() {
     return;
   }
 
+  if (state.isAdminOnly && !path.startsWith("/admin")) {
+    navigate("/admin/health");
+    return;
+  }
+
   if (path.startsWith("/admin") && !state.isAdmin) {
     navigate("/dashboard");
     return;

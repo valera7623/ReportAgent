@@ -1,6 +1,6 @@
 import { initState, state, setIsAdmin } from "./state.js";
 import { initRouter, registerRoute, renderRoute } from "./router.js";
-import { adminApi } from "./api.js";
+import { adminApi, dashboardApi } from "./api.js";
 import { renderLogin } from "./pages/login.js";
 import { renderDashboard } from "./pages/dashboard.js";
 import { renderReports } from "./pages/reports.js";
@@ -36,16 +36,32 @@ async function boot() {
   registerRoute("/admin/logs", () => renderAdminLogs(app));
 
   if (state.isAuthenticated) {
+    let isAdmin = false;
+    let isUser = false;
     try {
-      await adminApi.checkAdmin();
+      await adminApi.checkAdmin({ skipAuthRedirect: true });
+      isAdmin = true;
       setIsAdmin(true);
     } catch {
       setIsAdmin(false);
     }
+    try {
+      await dashboardApi.stats({ skipAuthRedirect: true });
+      isUser = true;
+    } catch {
+      isUser = false;
+    }
+    state.isAdminOnly = isAdmin && !isUser;
   }
 
   if (!location.hash || location.hash === "#") {
-    location.hash = state.isAuthenticated ? "#/dashboard" : "#/login";
+    if (!state.isAuthenticated) {
+      location.hash = "#/login";
+    } else if (state.isAdminOnly) {
+      location.hash = "#/admin/health";
+    } else {
+      location.hash = "#/dashboard";
+    }
   }
 
   await renderRoute();
