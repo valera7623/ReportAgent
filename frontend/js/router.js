@@ -2,6 +2,16 @@ import { stopHealthPolling } from "./health-polling.js";
 
 const routes = {};
 
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/register",
+  "/verify",
+  "/reset-password",
+  "/reset-password/confirm",
+]);
+
+const JWT_ONLY_PATHS = new Set(["/keys"]);
+
 export function registerRoute(path, handler) {
   routes[path] = handler;
 }
@@ -26,14 +36,20 @@ export async function renderRoute() {
     stopHealthPolling();
   }
 
-  if (path === "/login") {
-    await routes["/login"]?.(params);
+  if (PUBLIC_PATHS.has(path)) {
+    await routes[path]?.(params);
     return;
   }
 
   const { state } = await import("./state.js");
+
   if (!state.isAuthenticated) {
     navigate("/login");
+    return;
+  }
+
+  if (!state.hasApiKey && !JWT_ONLY_PATHS.has(path)) {
+    navigate("/keys");
     return;
   }
 
@@ -58,7 +74,7 @@ export async function renderRoute() {
     return;
   }
 
-  navigate("/dashboard");
+  navigate(state.hasApiKey ? "/dashboard" : "/keys");
 }
 
 export function initRouter() {

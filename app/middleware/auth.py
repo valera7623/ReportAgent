@@ -40,6 +40,7 @@ EXEMPT_PREFIXES = (
     "/redoc/",
     "/admin/",
     "/app/",
+    "/auth/",
 )
 
 

@@ -1,5 +1,5 @@
 import { API_BASE } from "./config.js";
-import { API_KEY_STORAGE } from "./config.js";
+import { API_KEY_STORAGE, JWT_STORAGE } from "./config.js";
 import { logout, state } from "./state.js";
 import { navigate } from "./router.js";
 import { showModal, toast } from "./ui.js";
@@ -131,7 +131,19 @@ export const previewApi = {
 
 export const keysApi = {
   list: () => api("/api/keys"),
-  generate: (body) => api("/api/keys/generate", { method: "POST", body: JSON.stringify(body) }),
+  generate: (body) => {
+    const jwt = localStorage.getItem(JWT_STORAGE);
+    const headers = { "Content-Type": "application/json" };
+    if (jwt) {
+      headers.Authorization = `Bearer ${jwt}`;
+    }
+    return api("/api/keys/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers,
+      skipAuthRedirect: !!jwt,
+    });
+  },
   revoke: (id) => api(`/api/keys/${id}`, { method: "DELETE" }),
   rotate: (id, body) =>
     api(`/api/keys/${id}/rotate`, { method: "POST", body: JSON.stringify(body || {}) }),

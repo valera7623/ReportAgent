@@ -1,9 +1,16 @@
 import { keysApi, onError } from "../api.js";
 import { mountShell } from "../layout.js";
+import { clearJwt, setApiKey, state } from "../state.js";
+import { navigate } from "../router.js";
 import { confirmDialog, loadingHtml, showModal, toast } from "../ui.js";
 import { formatDate, escapeHtml } from "../utils.js";
 
 export async function renderKeys(root) {
+  if (!state.hasApiKey && state.jwt) {
+    renderJwtOnboarding(root);
+    return;
+  }
+
   mountShell(root, "API-ключи", loadingHtml());
   try {
     const data = await keysApi.list();
@@ -11,6 +18,44 @@ export async function renderKeys(root) {
   } catch (err) {
     onError(err);
   }
+}
+
+function renderJwtOnboarding(root) {
+  root.innerHTML = `
+    <div class="login-page">
+      <div class="login-card" style="max-width:480px">
+        <h1>🔑 Первый API-ключ</h1>
+        <p class="text-muted">Войдите в систему через API-ключ. Он показывается один раз — сохраните его.</p>
+        ${state.userEmail ? `<p>Аккаунт: <strong>${escapeHtml(state.userEmail)}</strong></p>` : ""}
+        <div class="form-group">
+          <label for="gen-name">Название ключа</label>
+          <input id="gen-name" value="Default" />
+        </div>
+        <button type="button" class="btn" id="btn-first-key" style="width:100%">Сгенерировать API-ключ</button>
+      </div>
+    </div>`;
+
+  root.querySelector("#btn-first-key").onclick = async () => {
+    const name = root.querySelector("#gen-name")?.value || "Default";
+    const btn = root.querySelector("#btn-first-key");
+    btn.disabled = true;
+    try {
+      const res = await keysApi.generate({ name });
+      await showModal({
+        title: "Сохраните ключ!",
+        body: `<p class="text-muted" style="color:var(--danger)">Показывается один раз. После сохранения JWT будет удалён.</p><input readonly value="${escapeHtml(res.key)}" onclick="this.select()" />`,
+        footer: `<button class="btn" data-modal-action="true">Я сохранил ключ</button>`,
+      });
+      clearJwt();
+      setApiKey(res.key, false, false);
+      toast("API-ключ сохранён", "success");
+      navigate("/dashboard");
+    } catch (e) {
+      onError(e);
+    } finally {
+      btn.disabled = false;
+    }
+  };
 }
 
 function renderKeysTable(root, keys) {

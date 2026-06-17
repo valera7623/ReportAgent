@@ -2,6 +2,9 @@ import { initState, state, setBillingEnabled, setIsAdmin } from "./state.js";
 import { initRouter, registerRoute, renderRoute } from "./router.js";
 import { adminApi, dashboardApi, paymentsApi } from "./api.js";
 import { renderLogin } from "./pages/login.js";
+import { renderRegister } from "./pages/register.js";
+import { renderVerify } from "./pages/verify.js";
+import { renderResetPassword } from "./pages/reset_password.js";
 import { renderDashboard } from "./pages/dashboard.js";
 import { renderReports } from "./pages/reports.js";
 import { renderKeys } from "./pages/keys.js";
@@ -38,6 +41,10 @@ async function boot() {
   }
 
   registerRoute("/login", () => renderLogin(app));
+  registerRoute("/register", () => renderRegister(app));
+  registerRoute("/verify", (params) => renderVerify(app, params));
+  registerRoute("/reset-password", (params) => renderResetPassword(app, params));
+  registerRoute("/reset-password/confirm", (params) => renderResetPassword(app, params));
   registerRoute("/dashboard", () => renderDashboard(app));
   registerRoute("/reports", () => renderReports(app));
   registerRoute("/keys", () => renderKeys(app));
@@ -81,6 +88,8 @@ async function boot() {
   if (!location.hash || location.hash === "#") {
     if (!state.isAuthenticated) {
       location.hash = "#/login";
+    } else if (!state.hasApiKey && state.jwt) {
+      location.hash = "#/keys";
     } else if (state.isAdminOnly) {
       location.hash = "#/admin/health";
     } else {

@@ -5,6 +5,7 @@
 export const API_BASE = (typeof window !== "undefined" && window.REPORTAGENT_API_BASE) || "";
 
 export const API_KEY_STORAGE = "reportagent_api_key";
+export const JWT_STORAGE = "reportagent_jwt";
 export const THEME_STORAGE = "reportagent_theme";
 
 export const OUTPUT_FORMATS = [

@@ -61,27 +61,94 @@ REDIS_IMAGE=public.ecr.aws/docker/library/redis:7-alpine
 
 ## Authentication & user memory
 
-### Получить API-ключ (без аутентификации)
+### Регистрация и вход (email + пароль)
+
+Новый поток онбординга через веб-интерфейс (`/app#/register`) или API:
+
+1. **Регистрация** — `POST /auth/register`
+2. **Подтверждение email** — ссылка из письма → `POST /auth/verify`
+3. **Вход** — `POST /auth/login` → временный JWT (15 мин)
+4. **Первый API-ключ** — `POST /api/keys/generate` с `Authorization: Bearer <jwt>`
+5. **Работа с API** — заголовок `X-API-Key` для всех защищённых эндпоинтов
+
+#### Регистрация
 
 ```bash
-curl -X POST https://ваш-домен/api/keys/generate \
+curl -X POST https://ваш-домен/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com"}'
+  -d '{
+    "email": "user@example.com",
+    "password": "securepass123",
+    "password_confirm": "securepass123"
+  }'
+```
+
+На email придёт ссылка подтверждения (нужны `SMTP_*` и `FRONTEND_URL` в `.env`).
+
+#### Подтверждение email
+
+```bash
+curl -X POST https://ваш-домен/auth/verify \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "token": "…"}'
+```
+
+#### Вход (JWT)
+
+```bash
+curl -X POST https://ваш-домен/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "securepass123"}'
 ```
 
 Ответ:
 
 ```json
 {
-  "id": "uuid-…",
-  "key": "ra_abc123…",
-  "key_prefix": "ra_abc12",
-  "name": "Default",
-  "user_id": "uuid-…"
+  "access_token": "eyJ…",
+  "token_type": "bearer",
+  "user_id": "uuid-…",
+  "email": "user@example.com",
+  "is_verified": true
 }
 ```
 
-Сохраните `key` — полный ключ показывается **один раз** при создании. Новые ключи имеют префикс `ra_`.
+#### Первый API-ключ (JWT)
+
+```bash
+curl -X POST https://ваш-домен/api/keys/generate \
+  -H "Authorization: Bearer eyJ…" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Default"}'
+```
+
+#### Сброс пароля
+
+```bash
+curl -X POST https://ваш-домен/auth/request-reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+
+curl -X POST https://ваш-домен/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"token": "…", "new_password": "newpass12345"}'
+```
+
+#### Переменные окружения (auth)
+
+```bash
+JWT_SECRET_KEY=…          # openssl rand -hex 32
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=15
+VERIFICATION_TOKEN_EXPIRE_HOURS=24
+RESET_PASSWORD_TOKEN_EXPIRE_HOURS=1
+EMAIL_FROM=noreply@reportagent.com
+FRONTEND_URL=https://ваш-домен/app
+```
+
+#### Существующие пользователи (только API-ключ)
+
+Пользователи, созданные до email/password auth, автоматически помечаются как `is_verified=1` и могут входить через вкладку «API-ключ» в `/app#/login`. Старый `POST /api/keys/generate` без аутентификации **удалён** — для новых аккаунтов нужна регистрация.
 
 ### API Key Management
 

@@ -35,6 +35,7 @@ from app.routers import (
     admin_self_healing,
     admin_webhooks,
     api_keys,
+    auth,
     dashboard,
     preferences,
     preview,
@@ -78,7 +79,8 @@ app = FastAPI(
         "Upload CSV/Excel or provide a public Google Sheets URL to generate reports "
         "in PDF, Excel, PowerPoint, Notion, or Google Slides. "
         "Receive by email or download via API. "
-        "Authenticate with X-API-Key header (generate via POST /api/keys/generate)."
+        "Register at /auth/register, verify email, login for JWT, then generate API key. "
+        "Authenticate API requests with X-API-Key header."
     ),
     version="1.8.0",
     lifespan=lifespan,
@@ -91,6 +93,7 @@ app.add_middleware(UsageLimitMiddleware)
 app.add_middleware(APIKeyAuthMiddleware)
 
 app.include_router(admin.router)
+app.include_router(auth.router)
 app.include_router(api_keys.router)
 app.include_router(preferences.router)
 app.include_router(voice.router)
@@ -171,6 +174,7 @@ async def root() -> dict[str, str]:
         "docs": "/docs",
         "health": "/health",
         "sample_csv": "/samples/sample_sales.csv",
+        "auth": "/auth/register",
         "api_keys": "/api/keys/generate",
         "voice": "/voice/generate_report" if voice_available() else "disabled",
     }

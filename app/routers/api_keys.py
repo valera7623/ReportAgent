@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.auth.dependencies import get_current_user_from_jwt
 from app.auth.key_management import (
     generate_api_key,
     list_user_keys,
@@ -12,7 +13,6 @@ from app.auth.key_management import (
     rotate_api_key,
     verify_api_key,
 )
-from app.db.database import create_user, mask_api_key
 from app.models.api_key import (
     ApiKeyCreate,
     ApiKeyGenerateResponse,
@@ -39,6 +39,27 @@ def _client_ip(request: Request) -> str | None:
     if request.client:
         return request.client.host
     return None
+
+
+def _resolve_generate_user_id(request: Request) -> str:
+    """JWT (verified user) for onboarding, or X-API-Key for existing users."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        from fastapi.security import HTTPAuthorizationCredentials
+
+        creds = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=auth_header[7:].strip(),
+        )
+        return get_current_user_from_jwt(creds)
+
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        auth = verify_api_key(api_key, client_ip=_client_ip(request))
+        if auth:
+            return auth["user_id"]
+
+    raise HTTPException(status_code=401, detail="Authentication required (JWT or API key)")
 
 
 def _require_user_id(request: Request) -> str:
@@ -76,52 +97,28 @@ async def generate_key_endpoint(
     """
     Generate a new API key.
 
-    - **No authentication**: creates a new user account (onboarding) + first key.
-    - **With X-API-Key**: adds another key to the existing user.
+    - **JWT (Bearer)**: first key after email/password onboarding.
+    - **X-API-Key**: add another key for an existing user.
 
     The full key is returned **only once** — save it securely.
     """
     payload = body or ApiKeyCreate()
-    user_id = getattr(request.state, "user_id", None)
-
-    if not user_id:
-        header_key = request.headers.get("X-API-Key")
-        if header_key:
-            auth = verify_api_key(header_key, client_ip=_client_ip(request))
-            if auth:
-                user_id = auth["user_id"]
-
-    if not user_id:
-        user_id, full_key, key_id = create_user(
-            email=str(payload.email) if payload.email else None,
-            name=payload.name,
-        )
-        record_api_key_generated()
-        logger.info(
-            "Onboarding: created user %s with key %s",
-            user_id,
-            mask_api_key(full_key),
-        )
-        return ApiKeyGenerateResponse(
-            id=key_id,
-            key=full_key,
-            key_prefix=full_key[:8],
-            name=payload.name,
-            user_id=user_id,
-        )
+    user_id = _resolve_generate_user_id(request)
 
     full_key, key_id = generate_api_key(
         user_id,
         name=payload.name,
         expires_at=payload.expires_at,
     )
+    record_api_key_generated()
+    logger.info("Generated API key %s for user %s", key_id, user_id)
 
     return ApiKeyGenerateResponse(
         id=key_id,
         key=full_key,
         key_prefix=full_key[:8],
         name=payload.name,
-        user_id=None,
+        user_id=user_id,
     )
 
 
