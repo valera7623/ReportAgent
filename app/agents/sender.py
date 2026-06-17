@@ -204,7 +204,8 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef7")),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
+                    ("FONTNAME", (0, 0), (0, -1), PDF_FONT_BOLD),
                     ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
                 ]
             )
@@ -258,7 +259,8 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
                         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#55A868")),
                         ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
                         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
+                        ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
                     ]
                 )
             )
