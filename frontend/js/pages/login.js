@@ -4,7 +4,13 @@ import { setApiKey, setJwt, clearJwt } from "../state.js";
 import { navigate } from "../router.js";
 import { toast } from "../ui.js";
 
-export async function renderLogin(root) {
+export async function renderLogin(root, params = {}) {
+  if (params.verified === "1") {
+    toast("Email подтверждён. Войдите в аккаунт.", "success");
+  } else if (params.verify_error) {
+    toast(decodeURIComponent(params.verify_error), "error");
+  }
+
   root.innerHTML = `
     <div class="login-page">
       <div class="login-card">

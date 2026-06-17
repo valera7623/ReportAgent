@@ -40,7 +40,7 @@ async function boot() {
     setBillingEnabled(true);
   }
 
-  registerRoute("/login", () => renderLogin(app));
+  registerRoute("/login", (params) => renderLogin(app, params));
   registerRoute("/register", () => renderRegister(app));
   registerRoute("/verify", (params) => renderVerify(app, params));
   registerRoute("/reset-password", (params) => renderResetPassword(app, params));

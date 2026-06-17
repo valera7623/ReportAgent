@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import RedirectResponse
 
 from app.auth.email_service import send_reset_password_email, send_verification_email
 from app.auth.jwt import create_jwt, create_verification_token, verify_verification_token
@@ -33,6 +35,37 @@ def _utcnow() -> datetime:
 
 def _iso(dt: datetime) -> str:
     return dt.isoformat()
+
+
+def _frontend_hash(path: str) -> str:
+    base = (os.getenv("FRONTEND_URL") or "/app").rstrip("/")
+    return f"{base}#{path}"
+
+
+def _mark_email_verified(email: str) -> None:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE users
+            SET is_verified = 1,
+                verification_token = NULL,
+                verification_token_expires_at = NULL
+            WHERE email = ?
+            """,
+            (email,),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+
+def _verify_email_token(email: str, token: str) -> str:
+    verified_email = verify_verification_token(
+        token,
+        expires_hours=VERIFICATION_TOKEN_EXPIRE_HOURS,
+    )
+    if verified_email is None or verified_email != email:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+    return verified_email
 
 
 @router.post("/register")
@@ -90,28 +123,27 @@ async def register(user_data: UserRegister) -> dict[str, str]:
 
 @router.post("/verify")
 async def verify_email(data: VerifyEmail) -> dict[str, str]:
-    email = verify_verification_token(
-        data.token,
-        expires_hours=VERIFICATION_TOKEN_EXPIRE_HOURS,
-    )
-    if email is None or email != str(data.email):
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
-
-    with get_connection() as conn:
-        cursor = conn.execute(
-            """
-            UPDATE users
-            SET is_verified = 1,
-                verification_token = NULL,
-                verification_token_expires_at = NULL
-            WHERE email = ?
-            """,
-            (email,),
-        )
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="User not found")
-
+    email = _verify_email_token(str(data.email), data.token)
+    _mark_email_verified(email)
     return {"status": "success", "message": "Email verified successfully"}
+
+
+@router.get("/verify-email")
+async def verify_email_link(email: str, token: str) -> RedirectResponse:
+    """Confirm email from link in message (no API key / SPA required)."""
+    try:
+        verified_email = _verify_email_token(email, token)
+        _mark_email_verified(verified_email)
+        return RedirectResponse(
+            url=_frontend_hash("/login?verified=1"),
+            status_code=302,
+        )
+    except HTTPException as exc:
+        error = quote(str(exc.detail))
+        return RedirectResponse(
+            url=_frontend_hash(f"/login?verify_error={error}"),
+            status_code=302,
+        )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -175,6 +207,15 @@ async def login(data: UserLogin) -> TokenResponse:
         user_id=user_id,
         email=email or str(data.email),
         is_verified=bool(is_verified),
+    )
+
+
+@router.get("/reset-password-confirm")
+async def reset_password_link(token: str) -> RedirectResponse:
+    """Open password reset form from email link."""
+    return RedirectResponse(
+        url=_frontend_hash(f"/reset-password/confirm?token={quote(token)}"),
+        status_code=302,
     )
 
 

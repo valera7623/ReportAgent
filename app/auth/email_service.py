@@ -6,6 +6,7 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from urllib.parse import quote
 
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -16,16 +17,23 @@ FRONTEND_URL = (os.getenv("FRONTEND_URL") or "").rstrip("/")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
 
 
-def _frontend_link(hash_path: str) -> str:
-    base = FRONTEND_URL or "http://localhost:8000/app"
-    return f"{base}#{hash_path}"
+def _public_api_base() -> str:
+    explicit = os.getenv("WEBHOOK_PUBLIC_BASE_URL", "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    domain = os.getenv("DOMAIN", "").strip()
+    if domain:
+        scheme = "https" if not domain.startswith("localhost") else "http"
+        return f"{scheme}://{domain}"
+    if FRONTEND_URL:
+        return FRONTEND_URL.replace("/app", "").rstrip("/") or FRONTEND_URL
+    return "http://localhost:8000"
 
 
 def send_verification_email(email: str, token: str) -> bool:
-    from urllib.parse import quote
-
-    verification_url = _frontend_link(
-        f"/verify?email={quote(email)}&token={quote(token)}",
+    verification_url = (
+        f"{_public_api_base()}/auth/verify-email"
+        f"?email={quote(email)}&token={quote(token)}"
     )
 
     subject = "Подтверждение email для ReportAgent"
@@ -45,9 +53,7 @@ def send_verification_email(email: str, token: str) -> bool:
 
 
 def send_reset_password_email(email: str, token: str) -> bool:
-    from urllib.parse import quote
-
-    reset_url = _frontend_link(f"/reset-password/confirm?token={quote(token)}")
+    reset_url = f"{_public_api_base()}/auth/reset-password-confirm?token={quote(token)}"
 
     subject = "Сброс пароля для ReportAgent"
     html = f"""
