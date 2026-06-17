@@ -28,6 +28,8 @@ EXEMPT_PATHS = frozenset(
         "/payment/cancel",
         "/success",
         "/cancel",
+        "/robots.txt",
+        "/sitemap.xml",
         "/webhooks/yookassa",
         "/webhooks/stripe",
         "/api/payments/prices",

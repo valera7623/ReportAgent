@@ -97,10 +97,14 @@ chmod 777 chroma_data 2>/dev/null || true
 
 chmod +x scripts/healthcheck_celery.sh scripts/healthcheck_celery_beat.sh scripts/pull-images.sh scripts/preflight-prod.sh \
   scripts/setup-grafana.sh scripts/render-alertmanager.sh scripts/test_alerts.py \
-  scripts/diagnose_observability.sh scripts/check-nginx-grafana.sh 2>/dev/null || true
+  scripts/diagnose_observability.sh scripts/check-nginx-grafana.sh scripts/inject-frontend-seo.sh \
+  scripts/generate_seo_assets.py 2>/dev/null || true
 
 echo "==> Rendering Alertmanager config"
 ./scripts/render-alertmanager.sh
+
+echo "==> Injecting frontend SEO (GA4, Yandex Metrika, SITE_URL from .env)"
+./scripts/inject-frontend-seo.sh
 
 if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "WARNING: ffmpeg not found on host (optional; required inside Docker image for voice/pydub)."

@@ -47,6 +47,7 @@ from app.routers.payments_yookassa import admin_router as yookassa_admin_router
 from app.routers.payments_yookassa import router as yookassa_payments_router
 from app.routers.payments import admin_router as stripe_admin_router
 from app.routers.payments import router as stripe_payments_router
+from app.routers.seo import router as seo_router
 from app.webhooks.yookassa_webhook import router as yookassa_webhook_router
 from app.webhooks.stripe_webhook import router as stripe_webhook_router
 from app.tasks import generate_report
@@ -104,6 +105,7 @@ app.include_router(yookassa_payments_router)
 app.include_router(yookassa_admin_router)
 app.include_router(yookassa_webhook_router)
 app.include_router(stripe_payments_router)
+app.include_router(seo_router)
 app.include_router(stripe_admin_router)
 app.include_router(stripe_webhook_router)
 app.include_router(dashboard.router)
