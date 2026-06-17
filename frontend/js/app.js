@@ -1,5 +1,7 @@
 import { initState, state, setBillingEnabled, setIsAdmin } from "./state.js";
 import { initRouter, registerRoute, renderRoute } from "./router.js";
+import { initSeoPreconnect } from "./seo.js";
+import { initAnalytics } from "./utils/analytics.js";
 import { adminApi, dashboardApi, paymentsApi } from "./api.js";
 import { renderLogin } from "./pages/login.js";
 import { renderRegister } from "./pages/register.js";
@@ -30,6 +32,8 @@ import { renderAdminPayments } from "./pages/admin_payments.js";
 const app = document.getElementById("app");
 
 async function boot() {
+  initSeoPreconnect();
+  initAnalytics();
   initState();
   initRouter();
 

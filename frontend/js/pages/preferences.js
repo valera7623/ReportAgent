@@ -12,7 +12,7 @@ export async function renderPreferences(root) {
       root,
       "Настройки",
       `
-      <div class="page-header"><h2>Настройки</h2><p>Персональные предпочтения</p></div>
+      <div class="page-header"><h1>Настройки</h1><p class="seo-lead">Тема, формат отчётов, email по умолчанию и логотип компании</p></div>
       <div class="card" style="max-width:480px">
         <div class="card-body">
           <form id="prefs-form">

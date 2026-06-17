@@ -50,7 +50,7 @@ export function createChartCarousel(charts, previewId, onRegenerate) {
     const imgWrap = slide.querySelector(".chart-img-wrap");
     fetchChartBlob(chart.image_url)
       .then((blobUrl) => {
-        imgWrap.innerHTML = `<img src="${blobUrl}" alt="${escapeHtml(chart.title)}" class="preview-chart-img" />`;
+        imgWrap.innerHTML = `<img src="${blobUrl}" alt="${escapeHtml(chart.title)}" class="preview-chart-img" loading="lazy" decoding="async" />`;
       })
       .catch((err) => {
         console.error("Chart load failed:", chart.image_url, err);
@@ -94,7 +94,7 @@ export function createChartCarousel(charts, previewId, onRegenerate) {
           const imageUrl = await onRegenerate(chartIndex, btn.dataset.chartType);
           const imgWrap = slide.querySelector(".chart-img-wrap");
           const blobUrl = await fetchChartBlob(imageUrl);
-          imgWrap.innerHTML = `<img src="${blobUrl}" alt="chart" class="preview-chart-img" />`;
+          imgWrap.innerHTML = `<img src="${blobUrl}" alt="${escapeHtml(chart.title || "График отчёта")}" class="preview-chart-img" loading="lazy" decoding="async" />`;
           slide.querySelectorAll(".chart-type-btn").forEach((b) => {
             b.disabled = b.dataset.chartType === btn.dataset.chartType;
           });
@@ -116,7 +116,7 @@ export async function reloadChartImage(slide, imagePath) {
   imgWrap.innerHTML = '<div class="spinner chart-spinner"></div>';
   try {
     const blobUrl = await fetchChartBlob(imagePath);
-    imgWrap.innerHTML = `<img src="${blobUrl}" alt="chart" class="preview-chart-img" />`;
+    imgWrap.innerHTML = `<img src="${blobUrl}" alt="График отчёта ReportAgent" class="preview-chart-img" loading="lazy" decoding="async" />`;
   } catch {
     imgWrap.innerHTML = '<p class="text-muted">Ошибка загрузки</p>';
   }

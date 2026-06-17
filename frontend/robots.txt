@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+
+# SPA dashboard (hash routes served from /app/)
+Allow: /app/
+
+# API docs and health
+Allow: /docs
+Allow: /health
+
+# Private admin UI (hash routes under /app#/admin/*)
+Disallow: /app/#/admin/
+Disallow: /admin/
+
+# Auth-only areas — discourage indexing
+Disallow: /app/#/dashboard
+Disallow: /app/#/reports
+Disallow: /app/#/keys
+Disallow: /app/#/webhooks
+Disallow: /app/#/preferences
+Disallow: /app/#/subscription
+
+Sitemap: https://reportagent.example.com/sitemap.xml

@@ -51,7 +51,8 @@ export async function renderPricingYookassa(root) {
 
   const html = `
     <div class="page-header">
-      <h2>Тарифы — ЮKassa</h2>
+      <h1>Тарифы — ЮKassa</h1>
+      <p class="seo-lead">Оплата подписки ReportAgent картами РФ через ЮKassa</p>
       <p><a href="#/pricing">← Stripe (основной)</a></p>
     </div>
     <div class="grid-4">

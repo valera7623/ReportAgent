@@ -1,4 +1,6 @@
 import { stopHealthPolling } from "./health-polling.js";
+import { updatePageSeo } from "./seo.js";
+import { trackPageView } from "./utils/analytics.js";
 
 const routes = {};
 
@@ -37,6 +39,8 @@ export async function renderRoute() {
   }
 
   if (PUBLIC_PATHS.has(path)) {
+    updatePageSeo(path);
+    trackPageView(path);
     await routes[path]?.(params);
     return;
   }
@@ -44,6 +48,8 @@ export async function renderRoute() {
   const { state } = await import("./state.js");
 
   if (!state.isAuthenticated) {
+    updatePageSeo("/login");
+    trackPageView("/login");
     navigate("/login");
     return;
   }
@@ -64,12 +70,16 @@ export async function renderRoute() {
   }
 
   if (parts[0] === "admin" && parts[1] === "users" && parts[2]) {
+    updatePageSeo("/admin/users");
+    trackPageView(path);
     await routes["/admin/users/:id"]?.(parts[2], params);
     return;
   }
 
   const handler = routes[path];
   if (handler) {
+    updatePageSeo(path);
+    trackPageView(path);
     await handler(params);
     return;
   }

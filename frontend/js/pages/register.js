@@ -6,7 +6,8 @@ export async function renderRegister(root) {
   root.innerHTML = `
     <div class="login-page">
       <div class="login-card">
-        <h1>🛡️ ReportAgent</h1>
+        <h1>ReportAgent</h1>
+        <p class="seo-lead">Создайте аккаунт и начните генерировать отчёты из таблиц за минуты</p>
         <p>Регистрация</p>
         <form id="register-form">
           <div class="form-group">

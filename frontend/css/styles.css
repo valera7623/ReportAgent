@@ -63,7 +63,9 @@ a:hover { text-decoration: underline; }
 
 /* Typography */
 .page-header { margin-bottom: 1.5rem; }
-.page-header h2 { margin: 0 0 .25rem; font-size: 1.5rem; }
+.page-header h1, .page-header h2 { margin: 0 0 .25rem; font-size: 1.5rem; }
+.page-header .seo-lead { margin: 0 0 .5rem; color: var(--text-muted); font-size: .95rem; max-width: 42rem; }
+.login-card .seo-lead { margin: 0 0 1rem; color: var(--text-muted); font-size: .9rem; line-height: 1.4; }
 .page-header p { margin: 0; color: var(--text-muted); }
 .text-muted { color: var(--text-muted); }
 

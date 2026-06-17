@@ -38,7 +38,7 @@ export async function renderPricing(root) {
     mountShell(
       root,
       "Тарифы",
-      `<div class="page-header"><h2>Тарифы</h2></div>
+      `<div class="page-header"><h1>Тарифы</h1><p class="seo-lead">Тарифные планы ReportAgent</p></div>
        <div class="card"><div class="card-body">
          <p>Оплата Stripe временно отключена — включён <b>тестовый режим</b> без лимитов отчётов.</p>
          <button class="btn btn-outline" id="to-dash">На дашборд</button>
@@ -100,7 +100,7 @@ export async function renderPricing(root) {
     root,
     "Тарифы",
     `
-    <div class="page-header"><h2>Тарифы</h2><p>Оплата подписки через Stripe Checkout</p></div>
+    <div class="page-header"><h1>Тарифы</h1><p class="seo-lead">Выберите план ReportAgent: Freemium, Premium или Enterprise. Оплата через Stripe Checkout.</p></div>
     <div class="grid-4">${freemiumCard}${paidCards}</div>
     ${yookassaNote}`,
     (el) => {

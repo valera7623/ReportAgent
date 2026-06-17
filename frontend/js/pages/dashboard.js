@@ -85,7 +85,7 @@ export async function renderDashboard(root) {
       root,
       "Дашборд",
       `
-      <div class="page-header"><h2>Дашборд</h2><p>Обзор за последние 30 дней</p></div>
+      <div class="page-header"><h1>Дашборд</h1><p class="seo-lead">Обзор статистики и создание новых отчётов за последние 30 дней</p></div>
       <div class="card" style="margin-bottom:1.5rem">
         <div class="card-header"><h3>Новый отчёт — превью перед отправкой</h3></div>
         <div class="card-body">

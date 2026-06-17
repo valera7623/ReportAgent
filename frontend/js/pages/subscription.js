@@ -22,7 +22,7 @@ export async function renderSubscription(root) {
       root,
       "Подписка",
       `
-      <div class="page-header"><h2>Подписка</h2><p>Текущий тариф и использование</p></div>
+      <div class="page-header"><h1>Подписка</h1><p class="seo-lead">Текущий тариф и использование лимита отчётов</p></div>
       <div class="card" style="max-width:520px">
         <div class="card-body">
           <p><b>Тариф:</b> ${escapeHtml(planLabel(sub.plan_type))}</p>

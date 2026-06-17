@@ -14,7 +14,8 @@ export async function renderLogin(root, params = {}) {
   root.innerHTML = `
     <div class="login-page">
       <div class="login-card">
-        <h1>🛡️ ReportAgent</h1>
+        <h1>ReportAgent</h1>
+        <p class="seo-lead">Войдите в сервис генерации отчётов из CSV, Excel и Google Sheets с графиками и AI</p>
         <div class="tabs" style="display:flex;gap:.5rem;margin-bottom:1rem">
           <button type="button" class="btn btn-sm" id="tab-email" data-tab="email">Email</button>
           <button type="button" class="btn btn-outline btn-sm" id="tab-apikey" data-tab="apikey">API-ключ</button>

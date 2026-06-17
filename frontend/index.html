@@ -3,14 +3,84 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ReportAgent Dashboard</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+  <title>ReportAgent — генерация отчётов из таблиц с AI</title>
+  <meta name="description" content="ReportAgent: автоматические отчёты из CSV, Excel и Google Sheets. PDF, Excel, PowerPoint, Notion и Google Slides с графиками и AI-анализом." />
+  <meta name="keywords" content="отчёты, CSV, Excel, Google Sheets, PDF, аналитика, графики, ReportAgent, micro-SaaS" />
+  <meta name="author" content="ReportAgent" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="canonical" href="/app/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ReportAgent" />
+  <meta property="og:title" content="ReportAgent — генерация отчётов из таблиц с AI" />
+  <meta property="og:description" content="Автоматические отчёты из CSV, Excel и Google Sheets: PDF, Excel, PowerPoint, Notion и Google Slides с графиками." />
+  <meta property="og:url" content="/app/" />
+  <meta property="og:image" content="/app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="ru_RU" />
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ReportAgent — генерация отчётов из таблиц с AI" />
+  <meta name="twitter:description" content="Автоматические отчёты из CSV, Excel и Google Sheets с графиками и AI-анализом." />
+  <meta name="twitter:image" content="/app/og-image.png" />
+
+  <!-- Favicons -->
+  <link rel="icon" href="/app/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/app/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/app/favicon-32x32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/app/apple-touch-icon.png" />
+
+  <!-- Performance: API preconnect (same-origin by default; override REPORTAGENT_API_BASE in script below) -->
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+
   <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- JSON-LD: default WebApplication (updated per-route by seo.js) -->
+  <script type="application/ld+json" id="seo-json-ld-static">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "ReportAgent",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "description": "Генерация отчётов из CSV, Excel и Google Sheets: PDF, Excel, PowerPoint, Notion и Google Slides с графиками и AI-анализом.",
+    "url": "/app/",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD",
+      "description": "Freemium — 5 отчётов в месяц"
+    }
+  }
+  </script>
+
+  <!-- Optional: analytics & site URL (set on VPS or inject at deploy) -->
+  <script>
+    // window.REPORTAGENT_SITE_URL = 'https://reportagent.example.com';
+    // window.REPORTAGENT_GA4_ID = 'G-XXXXXXXXXX';
+    // window.REPORTAGENT_YM_ID = '12345678';
+    // window.REPORTAGENT_API_BASE = '';
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
   <div id="app"></div>
   <div id="toast-container" aria-live="polite"></div>
   <div id="modal-root"></div>
+  <noscript>
+    <p style="padding:1rem;font-family:system-ui,sans-serif">
+      ReportAgent требует JavaScript. Откройте <a href="#/login">страницу входа</a> или
+      <a href="/docs">документацию API</a>.
+    </p>
+  </noscript>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -85,7 +85,7 @@ function renderKeysTable(root, keys) {
     "API-ключи",
     `
     <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
-      <div><h2>API-ключи</h2><p>Управление ключами доступа</p></div>
+      <div><h1>API-ключи</h1><p class="seo-lead">Управление ключами доступа к API ReportAgent</p></div>
       <button class="btn" id="btn-generate">+ Сгенерировать</button>
     </div>
     <div class="table-wrap"><table>

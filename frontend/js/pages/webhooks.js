@@ -51,7 +51,7 @@ function renderWebhooksTable(root, list) {
     "Вебхуки",
     `
     <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
-      <div><h2>Вебхуки</h2><p>Уведомления о событиях</p></div>
+      <div><h1>Вебхуки</h1><p class="seo-lead">POST-уведомления о готовности и ошибках генерации отчётов</p></div>
       <button class="btn" id="btn-register">+ Зарегистрировать</button>
     </div>
     <div class="table-wrap"><table>

@@ -49,7 +49,7 @@ export function renderShell(contentHtml, title = "") {
       <div class="main">
         <header class="header">
           <button type="button" class="btn-icon menu-btn" data-action="toggle-sidebar">☰</button>
-          <h1 class="header-title">${escapeHtml(title)}</h1>
+          <p class="header-title" role="heading" aria-level="2">${escapeHtml(title)}</p>
           <div class="header-actions">
             <span class="key-badge" title="Текущий ключ">🔑 ${escapeHtml(prefix)}${state.isAdmin ? ' <span class="badge">Admin</span>' : ""}</span>
             <button type="button" class="btn-icon" data-action="toggle-theme" title="Тема">${state.theme === "dark" ? "☀️" : "🌙"}</button>

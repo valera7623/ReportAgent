@@ -99,7 +99,7 @@ export async function renderReports(root) {
       root,
       "Отчёты",
       `
-      <div class="page-header"><h2>Отчёты</h2><p>История генерации</p></div>
+      <div class="page-header"><h1>Отчёты</h1><p class="seo-lead">История генерации отчётов: статус, формат и скачивание</p></div>
       ${filtersHtml}
       <div class="table-wrap"><table>
         <thead><tr><th>ID</th><th>Дата</th><th>Формат</th><th>Статус</th><th></th></tr></thead>
