@@ -27,6 +27,7 @@ MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "25"))
 GOOGLE_SHEETS_PATTERN = re.compile(
     r"https?://docs\.google\.com/spreadsheets/d/([a-zA-Z0-9_-]+)"
 )
+GOOGLE_SA_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "./secrets/google-sa.json").strip()
 
 
 def _extract_sheet_id(url: str) -> str:
@@ -42,6 +43,71 @@ def _extract_sheet_id(url: str) -> str:
 
 def _export_url(sheet_id: str) -> str:
     return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+
+
+def _service_account_email() -> str | None:
+    sa_path = Path(GOOGLE_SA_JSON)
+    if not sa_path.is_file():
+        return None
+    try:
+        import json
+
+        payload = json.loads(sa_path.read_text(encoding="utf-8"))
+        return payload.get("client_email")
+    except Exception:
+        return None
+
+
+def _sheet_access_hint() -> str:
+    hint = (
+        "Google Sheet is not publicly accessible. "
+        "Set sharing to 'Anyone with the link can view'."
+    )
+    sa_email = _service_account_email()
+    if sa_email:
+        hint += f" Or share the sheet with the service account: {sa_email}"
+    return hint
+
+
+def _fetch_google_sheet_via_service_account(sheet_id: str) -> pd.DataFrame:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
+    sa_path = Path(GOOGLE_SA_JSON)
+    if not sa_path.is_file():
+        raise AgentError(_sheet_access_hint(), agent="parser")
+
+    creds = service_account.Credentials.from_service_account_file(
+        str(sa_path),
+        scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    )
+    service = build("sheets", "v4", credentials=creds, cache_discovery=False)
+    try:
+        result = (
+            service.spreadsheets()
+            .values()
+            .get(spreadsheetId=sheet_id, range="A:ZZ")
+            .execute()
+        )
+    except Exception as exc:
+        raise AgentError(
+            f"{_sheet_access_hint()} ({exc})",
+            agent="parser",
+        ) from exc
+
+    values = result.get("values", [])
+    if not values:
+        raise AgentError("The dataset is empty. Add at least one row of data.", agent="parser")
+
+    if len(values) == 1:
+        df = pd.DataFrame(values)
+    else:
+        header, *rows = values
+        width = len(header)
+        normalized_rows = [row + [""] * (width - len(row)) for row in rows]
+        df = pd.DataFrame(normalized_rows, columns=header)
+
+    return df
 
 
 def _validate_email_optional(email: str | None) -> None:
@@ -124,16 +190,26 @@ def _fetch_google_sheet(url: str) -> pd.DataFrame:
     try:
         with httpx.Client(timeout=30.0, follow_redirects=True) as client:
             response = client.get(export_url)
-            if response.status_code == 403:
-                raise AgentError(
-                    "Google Sheet is not publicly accessible. "
-                    "Set sharing to 'Anyone with the link can view'.",
-                    agent="parser",
+            if response.status_code in (401, 403):
+                logger.info(
+                    "Public Google Sheet export denied (%s), trying service account",
+                    response.status_code,
                 )
+                return _normalize_dataframe(_fetch_google_sheet_via_service_account(sheet_id))
             response.raise_for_status()
             content = response.content
     except AgentError:
         raise
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (401, 403):
+            try:
+                return _normalize_dataframe(_fetch_google_sheet_via_service_account(sheet_id))
+            except AgentError:
+                raise AgentError(_sheet_access_hint(), agent="parser") from exc
+        raise AgentError(
+            f"Failed to download Google Sheet: {exc}",
+            agent="parser",
+        ) from exc
     except Exception as exc:
         raise AgentError(
             f"Failed to download Google Sheet: {exc}",
