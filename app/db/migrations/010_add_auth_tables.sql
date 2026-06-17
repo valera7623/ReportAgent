@@ -12,6 +12,16 @@ ALTER TABLE users ADD COLUMN login_attempts INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN locked_until TIMESTAMP;
 
 -- Unique email where set (email column existed from 001_init.sql)
+-- Legacy rows may contain duplicates or empty strings — normalize first.
+UPDATE users SET email = NULL WHERE email IS NOT NULL AND trim(email) = '';
+
+UPDATE users
+SET email = NULL
+WHERE email IS NOT NULL
+  AND rowid NOT IN (
+    SELECT MIN(rowid) FROM users WHERE email IS NOT NULL GROUP BY email
+  );
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL;
 
 -- Existing API-key users are treated as verified (no email/password yet)
