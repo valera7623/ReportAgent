@@ -20,6 +20,7 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 
 from app.preview.summary import build_key_metrics
 from app.self_healing.healing_decorator import with_self_healing
+from app.utils.fonts import PDF_FONT, PDF_FONT_BOLD, ensure_pdf_fonts
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
 
@@ -110,7 +111,8 @@ def _append_data_sample(
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2d3748")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
+                ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -122,11 +124,13 @@ def _append_data_sample(
 
 
 def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | None = None) -> None:
+    ensure_pdf_fonts()
     task_id = visualized["task_id"]
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         "Title",
         parent=styles["Heading1"],
+        fontName=PDF_FONT_BOLD,
         fontSize=18,
         spaceAfter=12,
         textColor=colors.HexColor("#1a1a2e"),
@@ -134,12 +138,17 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
     heading_style = ParagraphStyle(
         "Section",
         parent=styles["Heading2"],
+        fontName=PDF_FONT_BOLD,
         fontSize=14,
         spaceBefore=14,
         spaceAfter=8,
         textColor=colors.HexColor("#16213e"),
     )
-    body_style = styles["BodyText"]
+    body_style = ParagraphStyle(
+        "Body",
+        parent=styles["BodyText"],
+        fontName=PDF_FONT,
+    )
 
     doc = SimpleDocTemplate(
         str(pdf_path),
@@ -175,7 +184,8 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef7")),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
+                ("FONTNAME", (0, 0), (0, -1), PDF_FONT_BOLD),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
             ]
@@ -224,7 +234,8 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4C72B0")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
+                    ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
                     ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f4f8")]),
                 ]
             )

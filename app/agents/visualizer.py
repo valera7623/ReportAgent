@@ -14,6 +14,7 @@ import pandas as pd
 
 from app.models.schemas import AgentError
 from app.self_healing.healing_decorator import with_self_healing
+from app.utils.fonts import configure_matplotlib_fonts
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
 
@@ -51,6 +52,7 @@ def _chart_dir(task_id: str) -> Path:
 
 
 def _apply_chart_style(palette: dict[str, str]) -> None:
+    configure_matplotlib_fonts()
     plt.rcParams.update(
         {
             "figure.facecolor": palette["bg"],
