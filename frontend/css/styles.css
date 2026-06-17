@@ -155,7 +155,7 @@ tr.clickable { cursor: pointer; }
 .chart-dot { width: 8px; height: 8px; border-radius: 50%; border: none; background: var(--border); margin: 0 4px; cursor: pointer; }
 .chart-dot.active { background: var(--primary); }
 .chart-dots { display: flex; justify-content: center; margin-top: .5rem; }
-.preview-section { margin-bottom: 1rem; }
+.card-highlight { outline: 2px solid var(--primary); outline-offset: 2px; transition: outline-color .3s; }
 .preview-confirm label { display: block; margin: .5rem 0 .25rem; font-size: .85rem; }
 .preview-summary { margin: 1rem 0; }
 .preview-table-wrap { max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
@@ -164,6 +164,8 @@ tr.clickable { cursor: pointer; }
 .preview-table th { position: sticky; top: 0; background: var(--bg-card); }
 .preview-table-note { margin-top: .35rem; font-size: .8rem; }
 .chart-carousel { margin: .5rem 0 1rem; }
+.chart-title-list { margin: 0 0 .75rem 1.1rem; color: var(--text-muted); font-size: .9rem; }
+.chart-title-list li { margin-bottom: .25rem; }
 .chart-slides { position: relative; min-height: 220px; }
 .chart-slide { display: none; text-align: center; }
 .chart-slide.active { display: block; }

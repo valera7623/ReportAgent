@@ -51,6 +51,42 @@ def _validate_email_optional(email: str | None) -> None:
         raise AgentError("Invalid email format.", agent="parser")
 
 
+def _file_starts_with(file_path: Path, magic: bytes) -> bool:
+    with file_path.open("rb") as fh:
+        return fh.read(len(magic)) == magic
+
+
+def _read_csv_robust(source: Path | BytesIO, *, label: str = "file") -> pd.DataFrame:
+    """Read CSV with common encodings (UTF-8, Windows-1251) and Excel RU separators."""
+    encodings = ("utf-8-sig", "utf-8", "cp1251", "latin-1")
+    last_error: Exception | None = None
+
+    for encoding in encodings:
+        for sep in (None, ",", ";", "\t"):
+            try:
+                if isinstance(source, Path):
+                    return pd.read_csv(source, encoding=encoding, sep=sep, engine="python")
+                source.seek(0)
+                return pd.read_csv(source, encoding=encoding, sep=sep, engine="python")
+            except UnicodeDecodeError as exc:
+                last_error = exc
+                break
+            except pd.errors.EmptyDataError:
+                raise AgentError("The dataset is empty. Add at least one row of data.", agent="parser")
+            except Exception as exc:
+                last_error = exc
+                if "codec can't decode" in str(exc).lower():
+                    break
+
+    hint = (
+        f"Could not read the uploaded file: {last_error}. "
+        "Save CSV as UTF-8 or upload .xlsx/.xls."
+        if last_error
+        else f"Could not read {label} as CSV."
+    )
+    raise AgentError(hint, agent="parser") from last_error
+
+
 def _read_uploaded_file(file_path: Path) -> pd.DataFrame:
     suffix = file_path.suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -62,11 +98,17 @@ def _read_uploaded_file(file_path: Path) -> pd.DataFrame:
     try:
         fix_ctx = get_active_fix_context()
         if suffix == ".csv":
-            return pd.read_csv(file_path)
+            if _file_starts_with(file_path, b"PK\x03\x04") or _file_starts_with(file_path, b"\xd0\xcf\x11\xe0"):
+                engine = fix_ctx.get("excel_engine") or "openpyxl"
+                return pd.read_excel(file_path, engine=engine)
+            return _read_csv_robust(file_path, label=str(file_path.name))
+
         engine = fix_ctx.get("excel_engine")
         if engine:
             return pd.read_excel(file_path, engine=engine)
         return pd.read_excel(file_path)
+    except AgentError:
+        raise
     except Exception as exc:
         raise AgentError(
             f"Could not read the uploaded file: {exc}. "
@@ -99,7 +141,9 @@ def _fetch_google_sheet(url: str) -> pd.DataFrame:
         ) from exc
 
     try:
-        df = pd.read_csv(BytesIO(content))
+        df = _read_csv_robust(BytesIO(content), label="Google Sheet export")
+    except AgentError:
+        raise
     except Exception as exc:
         raise AgentError(
             f"Downloaded sheet is not valid CSV data: {exc}",

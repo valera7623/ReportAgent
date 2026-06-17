@@ -29,9 +29,8 @@ export function createChartCarousel(charts, previewId, onRegenerate) {
 
   charts.forEach((chart, idx) => {
     const slide = document.createElement("div");
-    slide.className = "chart-slide";
+    slide.className = `chart-slide${idx === 0 ? " active" : ""}`;
     slide.dataset.slide = String(idx);
-    slide.style.display = idx === 0 ? "" : "none";
     slide.innerHTML = `
       <div class="chart-img-wrap"><div class="spinner chart-spinner"></div></div>
       <div class="chart-slide-meta">
@@ -53,8 +52,9 @@ export function createChartCarousel(charts, previewId, onRegenerate) {
       .then((blobUrl) => {
         imgWrap.innerHTML = `<img src="${blobUrl}" alt="${escapeHtml(chart.title)}" class="preview-chart-img" />`;
       })
-      .catch(() => {
-        imgWrap.innerHTML = '<p class="text-muted">Не удалось загрузить график</p>';
+      .catch((err) => {
+        console.error("Chart load failed:", chart.image_url, err);
+        imgWrap.innerHTML = '<p class="text-muted">Не удалось загрузить график. Обновите страницу и попробуйте снова.</p>';
       });
   });
 
@@ -76,7 +76,7 @@ export function createChartCarousel(charts, previewId, onRegenerate) {
 
   const show = (idx) => {
     slides().forEach((s, i) => {
-      s.style.display = i === idx ? "" : "none";
+      s.classList.toggle("active", i === idx);
     });
     dots().forEach((d, i) => d.classList.toggle("active", i === idx));
   };

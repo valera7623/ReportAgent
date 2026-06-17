@@ -7,6 +7,7 @@ export const state = {
   isAdmin: false,
   isAdminOnly: false,
   isAuthenticated: !!localStorage.getItem(API_KEY_STORAGE),
+  billingEnabled: true,
   theme: localStorage.getItem(THEME_STORAGE) || "light",
   sidebarOpen: false,
 };
@@ -31,6 +32,11 @@ export function setApiKey(key, isAdmin = false, isAdminOnly = false) {
 
 export function setIsAdmin(v) {
   state.isAdmin = v;
+  notify();
+}
+
+export function setBillingEnabled(v) {
+  state.billingEnabled = !!v;
   notify();
 }
 

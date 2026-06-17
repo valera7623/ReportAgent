@@ -1,6 +1,6 @@
-import { initState, state, setIsAdmin } from "./state.js";
+import { initState, state, setBillingEnabled, setIsAdmin } from "./state.js";
 import { initRouter, registerRoute, renderRoute } from "./router.js";
-import { adminApi, dashboardApi } from "./api.js";
+import { adminApi, dashboardApi, paymentsApi } from "./api.js";
 import { renderLogin } from "./pages/login.js";
 import { renderDashboard } from "./pages/dashboard.js";
 import { renderReports } from "./pages/reports.js";
@@ -29,6 +29,13 @@ const app = document.getElementById("app");
 async function boot() {
   initState();
   initRouter();
+
+  try {
+    const billing = await paymentsApi.config({ skipAuthRedirect: true });
+    setBillingEnabled(billing?.billing_enabled !== false);
+  } catch {
+    setBillingEnabled(true);
+  }
 
   registerRoute("/login", () => renderLogin(app));
   registerRoute("/dashboard", () => renderDashboard(app));

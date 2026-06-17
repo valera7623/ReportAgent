@@ -1,4 +1,4 @@
-import { stopHealthPolling } from "./pages/admin.js";
+import { stopHealthPolling } from "./health-polling.js";
 
 const routes = {};
 

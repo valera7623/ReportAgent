@@ -249,6 +249,7 @@ async def confirm_preview(request: Request, body: PreviewConfirmRequest):
         file_path=file_path,
         api_key=api_key,
         output_format=resolved_format,
+        preview_id=body.preview_id,
     )
 
     log_history(
@@ -259,7 +260,8 @@ async def confirm_preview(request: Request, body: PreviewConfirmRequest):
     )
     _log_preview_action(user_id, body.preview_id, "confirmed")
     record_preview_confirmed()
-    delete_preview(body.preview_id)
+    # Keep uploaded file on disk until Celery reads it (async queue).
+    delete_preview(body.preview_id, remove_files=False)
 
     download_url = f"/tasks/{task.id}/pdf" if resolved_format == "pdf" else f"/tasks/{task.id}/export"
     return GenerateReportResponse(

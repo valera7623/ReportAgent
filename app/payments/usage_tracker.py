@@ -15,6 +15,9 @@ from fastapi import HTTPException
 
 from app.config.output_formats import EXTERNAL_FORMATS
 from app.db.database import get_connection
+from app.payments.billing_config import billing_enabled
+
+_TESTING_UNLIMITED = 999_999
 
 
 REPORT_LIMIT_PLAN = Literal["freemium", "premium_monthly", "premium_yearly", "enterprise"]
@@ -112,6 +115,8 @@ def check_report_limit(
     slot_reserved: bool = False,
 ) -> bool:
     """Return True if user may generate a report."""
+    if not billing_enabled():
+        return bool(user_id)
     if not user_id:
         return False
     try:
@@ -149,6 +154,18 @@ def _api_plan_label(plan_type: str) -> str:
 
 def get_subscription_api_response(user_id: str) -> dict[str, object]:
     """Stripe-style subscription payload for GET /api/payments/subscription."""
+    if not billing_enabled():
+        return {
+            "plan_type": "freemium",
+            "status": "testing",
+            "reports_limit": _TESTING_UNLIMITED,
+            "reports_used": 0,
+            "reports_remaining": _TESTING_UNLIMITED,
+            "current_period_end": None,
+            "is_active": True,
+            "payment_provider": "disabled",
+            "stripe_subscription_id": None,
+        }
     sub = get_user_subscription(user_id)
     with get_connection() as conn:
         row = conn.execute(
@@ -374,6 +391,14 @@ def consume_report_slot(*, user_id: str, desired_output_format: str | None = Non
     """Atomically consume 1 report usage slot for current UTC month."""
     if not user_id:
         raise HTTPException(status_code=401, detail="User is required")
+
+    if not billing_enabled():
+        return ConsumedSlot(
+            plan_type="freemium",
+            monthly_limit=_TESTING_UNLIMITED,
+            used_reports=0,
+            remaining_reports=_TESTING_UNLIMITED,
+        )
 
     now = datetime.now(timezone.utc)
     period_start, period_end = _month_bounds(now)

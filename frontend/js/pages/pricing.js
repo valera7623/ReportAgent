@@ -4,6 +4,7 @@ import { loadingHtml, toast } from "../ui.js";
 import { navigate } from "../router.js";
 import { escapeHtml, formatUsdCents } from "../utils.js";
 import { onError, paymentsApi } from "../api.js";
+import { state } from "../state.js";
 
 function getApiKey() {
   return localStorage.getItem(API_KEY_STORAGE);
@@ -33,6 +34,20 @@ async function startCheckout(priceId) {
 }
 
 export async function renderPricing(root) {
+  if (!state.billingEnabled) {
+    mountShell(
+      root,
+      "Тарифы",
+      `<div class="page-header"><h2>Тарифы</h2></div>
+       <div class="card"><div class="card-body">
+         <p>Оплата Stripe временно отключена — включён <b>тестовый режим</b> без лимитов отчётов.</p>
+         <button class="btn btn-outline" id="to-dash">На дашборд</button>
+       </div></div>`,
+      (el) => el.querySelector("#to-dash")?.addEventListener("click", () => navigate("/dashboard")),
+    );
+    return;
+  }
+
   mountShell(root, "Тарифы", loadingHtml());
 
   let prices = [];

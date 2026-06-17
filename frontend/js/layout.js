@@ -2,13 +2,13 @@ import { state, subscribe, toggleSidebar, toggleTheme, logout } from "./state.js
 import { navigate } from "./router.js";
 import { escapeHtml } from "./utils.js";
 
-const userNav = [
+const userNavAll = [
   { path: "/dashboard", label: "Дашборд", icon: "📊" },
   { path: "/reports", label: "Отчёты", icon: "📄" },
   { path: "/keys", label: "API-ключи", icon: "🔑" },
   { path: "/webhooks", label: "Вебхуки", icon: "🔗" },
-  { path: "/pricing", label: "Тарифы", icon: "💳" },
-  { path: "/subscription", label: "Подписка", icon: "⭐" },
+  { path: "/pricing", label: "Тарифы", icon: "💳", billing: true },
+  { path: "/subscription", label: "Подписка", icon: "⭐", billing: true },
   { path: "/preferences", label: "Настройки", icon: "⚙️" },
 ];
 
@@ -30,6 +30,7 @@ export function renderShell(contentHtml, title = "") {
   const hash = location.hash.replace(/^#/, "") || "/dashboard";
   const current = hash.split("?")[0];
   const prefix = state.apiKey ? `${state.apiKey.slice(0, 8)}…` : "—";
+  const userNav = userNavAll.filter((n) => state.billingEnabled || !n.billing);
 
   const adminSection = state.isAdmin
     ? `<div class="nav-section">Админ</div>${adminNav.map((n) => navLink(n, current)).join("")}`

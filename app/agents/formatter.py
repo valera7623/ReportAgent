@@ -159,12 +159,14 @@ def to_pdf(analysis_data: dict[str, Any], charts: list[str], user_preferences: d
     if not cached.is_file() and Path(pdf_path).is_file():
         shutil.copy2(pdf_path, cached)
 
+    resolved_pdf = str(cached) if cached.is_file() else str(pdf_path)
+
     return FormatResult(
-        file_path=cached if cached.is_file() else pdf_path,
+        file_path=resolved_pdf,
         external_url=None,
         content_type="application/pdf",
         output_format="pdf",
-        pdf_path=pdf_path,
+        pdf_path=str(pdf_path),
     )
 
 

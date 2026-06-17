@@ -83,7 +83,7 @@ def get_preview(preview_id: str) -> dict[str, Any] | None:
     return payload
 
 
-def delete_preview(preview_id: str) -> None:
+def delete_preview(preview_id: str, *, remove_files: bool = True) -> None:
     try:
         client = _redis()
         client.delete(_preview_key(preview_id))
@@ -98,7 +98,7 @@ def delete_preview(preview_id: str) -> None:
         _memory_charts.pop(k, None)
 
     preview_path = PREVIEW_DIR / preview_id
-    if preview_path.is_dir():
+    if remove_files and preview_path.is_dir():
         shutil.rmtree(preview_path, ignore_errors=True)
 
 

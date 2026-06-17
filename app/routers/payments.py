@@ -13,10 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from app.admin.dependency import admin_required
 from app.db.database import get_connection, get_user_by_id
 from app.payments import stripe_client
+from app.payments.billing_config import billing_enabled, stripe_checkout_enabled
 from app.payments.models import (
     AdminRefundResponse,
     AdminRevenueResponse,
     AdminSubscriptionsResponse,
+    BillingConfigResponse,
     CancelSubscriptionResponse,
     CreateCheckoutRequest,
     CreateCheckoutResponse,
@@ -74,9 +76,20 @@ def _user_email(user_id: str) -> str:
     return str(user["email"])
 
 
+@router.get("/config", response_model=BillingConfigResponse)
+async def billing_config() -> BillingConfigResponse:
+    """Public billing feature flags for the SPA."""
+    return BillingConfigResponse(
+        billing_enabled=billing_enabled(),
+        stripe_enabled=stripe_checkout_enabled(),
+    )
+
+
 @router.get("/prices", response_model=PricesResponse)
 async def list_prices() -> PricesResponse:
     """Public list of configured Stripe prices."""
+    if not stripe_checkout_enabled():
+        return PricesResponse(prices=[])
     items: list[PriceItem] = []
     for price_id, name, plan_type in _price_catalog():
         if not price_id:
@@ -108,6 +121,8 @@ async def list_prices() -> PricesResponse:
 @router.post("/create-checkout", response_model=CreateCheckoutResponse)
 async def create_checkout(request: Request, body: CreateCheckoutRequest) -> CreateCheckoutResponse:
     """Create Stripe Checkout session for authenticated user."""
+    if not stripe_checkout_enabled():
+        raise HTTPException(status_code=403, detail="Оплата Stripe временно отключена")
     user_id = _require_user_id(request)
     email = _user_email(user_id)
 

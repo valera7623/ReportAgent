@@ -1,6 +1,6 @@
 import { API_BASE } from "./config.js";
 import { API_KEY_STORAGE } from "./config.js";
-import { logout } from "./state.js";
+import { logout, state } from "./state.js";
 import { navigate } from "./router.js";
 import { showModal, toast } from "./ui.js";
 import { qs } from "./utils.js";
@@ -57,7 +57,7 @@ async function handleResponse(res, { skipAuthRedirect = false } = {}) {
   }
 
   if (res.status === 402) {
-    if (!skipAuthRedirect) {
+    if (!skipAuthRedirect && state.billingEnabled) {
       await showUpgradeModal(serverMsg);
     }
     throw new Error(serverMsg || "Требуется подписка");
@@ -86,6 +86,7 @@ export const dashboardApi = {
 };
 
 export const paymentsApi = {
+  config: (opts = {}) => api("/api/payments/config", opts),
   prices: (opts = {}) => api("/api/payments/prices", opts),
   subscription: (opts = {}) => api("/api/payments/subscription", opts),
   createCheckout: (body, opts = {}) =>
@@ -121,22 +122,6 @@ export const previewApi = {
   jobStatus: (jobId) => api(`/api/reports/preview/status/${jobId}`),
   confirm: (body) =>
     api("/api/reports/preview/confirm", { method: "POST", body: JSON.stringify(body) }),
-  regenerateChart: (body) =>
-    api("/api/reports/preview/regenerate-chart", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-};
-
-export const previewApi = {
-  create: (formData) =>
-    api("/api/reports/preview", { method: "POST", body: formData, headers: headers(false) }),
-  jobStatus: (jobId) => api(`/api/reports/preview/status/${jobId}`),
-  confirm: (body) =>
-    api("/api/reports/preview/confirm", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
   regenerateChart: (body) =>
     api("/api/reports/preview/regenerate-chart", {
       method: "POST",

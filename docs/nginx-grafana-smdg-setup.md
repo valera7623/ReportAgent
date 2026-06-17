@@ -61,6 +61,8 @@ docker inspect "$NGINX" --format '{{json .Mounts}}' | python3 -m json.tool
 
 ## Шаг 3 — Добавить server block для Grafana
 
+**Важно:** в `nginx/upstream-target.conf` должны быть map-переменные `$reportagent_grafana_upstream` и `$reportagent_api_upstream` (см. `smdg/nginx/upstream-target.conf` в ReportAgent). Nginx уже использует `resolver 127.0.0.11` — с переменными в `proxy_pass` контейнер стартует даже если Grafana остановлена (запросы получат 502, а не crash loop).
+
 Создайте файл, например `grafana-reportagent.conf` (рядом с конфигом reportagent):
 
 ```nginx
@@ -81,7 +83,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/grafana.reportagent.fileguardian.info/privkey.pem;
 
     location / {
-        proxy_pass http://reportagent_grafana:3000;
+        proxy_pass $reportagent_grafana_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -102,7 +104,7 @@ server {
     listen 80;
     server_name grafana.reportagent.fileguardian.info;
     location / {
-        proxy_pass http://reportagent_grafana:3000;
+        proxy_pass $reportagent_grafana_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
     }

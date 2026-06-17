@@ -40,7 +40,8 @@ export function openPreviewModal({
         </section>
 
         <section class="preview-section">
-          <h4>Графики</h4>
+          <h4>Графики${(data.charts || []).length ? ` (${data.charts.length})` : ""}</h4>
+          ${(data.charts || []).length ? `<ul class="chart-title-list">${(data.charts || []).map((c) => `<li>${escapeHtml(c.title || c.type)} <span class="badge badge-muted">${escapeHtml(c.type)}</span></li>`).join("")}</ul>` : ""}
           <div id="preview-charts-mount"></div>
         </section>
 
@@ -80,8 +81,12 @@ export function openPreviewModal({
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close(false);
   });
+  overlay.querySelector(".modal")?.addEventListener("click", (e) => e.stopPropagation());
 
-  overlay.querySelector('[data-action="edit"]').onclick = () => close("edit");
+  overlay.querySelector('[data-action="edit"]').onclick = (e) => {
+    e.stopPropagation();
+    close("edit");
+  };
 
   const runConfirm = async (withEmail) => {
     const emailEl = overlay.querySelector("#preview-email");

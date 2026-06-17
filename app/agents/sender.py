@@ -18,7 +18,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.models.schemas import AgentError
+from app.preview.summary import build_key_metrics
 from app.self_healing.healing_decorator import with_self_healing
 from app.utils.logger import get_logger
 from app.utils.metrics import track_agent_metrics
@@ -56,6 +56,69 @@ def _try_load_logo(logo_url: str | None, task_id: str) -> Path | None:
     except Exception as exc:
         logger.warning("Could not download company logo from %s: %s", logo_url, exc)
         return None
+
+
+def _cell_text(value: Any, max_len: int = 36) -> str:
+    text = "" if value is None else str(value)
+    if len(text) > max_len:
+        return text[: max_len - 3] + "..."
+    return text
+
+
+def _append_data_sample(
+    story: list[Any],
+    visualized: dict[str, Any],
+    *,
+    heading_style: ParagraphStyle,
+    body_style: ParagraphStyle,
+    limit: int = 50,
+    max_cols: int = 6,
+) -> None:
+    columns: list[str] = list(visualized.get("columns") or [])
+    data: list[Any] = visualized.get("data") or []
+    if not columns or not data:
+        return
+
+    shown_cols = columns[:max_cols]
+    total_rows = int(visualized.get("row_count") or len(data))
+    shown_rows = min(limit, len(data))
+
+    story.append(Paragraph("Data Sample", heading_style))
+    story.append(
+        Paragraph(
+            f"Showing {shown_rows} of {total_rows} rows"
+            + (f" ({len(columns)} columns, first {len(shown_cols)} shown)" if len(columns) > max_cols else ""),
+            body_style,
+        )
+    )
+
+    table_data: list[list[str]] = [shown_cols]
+    for row in data[:shown_rows]:
+        if isinstance(row, dict):
+            table_data.append([_cell_text(row.get(col)) for col in shown_cols])
+        elif isinstance(row, (list, tuple)):
+            table_data.append([_cell_text(cell) for cell in row[: len(shown_cols)]])
+        else:
+            table_data.append([_cell_text(row)])
+
+    col_count = len(shown_cols)
+    col_width = min(4 * cm, (16 * cm) / max(col_count, 1))
+    data_table = Table(table_data, colWidths=[col_width] * col_count, repeatRows=1)
+    data_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2d3748")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(data_table)
+    story.append(Spacer(1, 0.5 * cm))
 
 
 def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | None = None) -> None:
@@ -121,6 +184,24 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
     story.append(overview_table)
     story.append(Spacer(1, 0.5 * cm))
 
+    key_metrics = build_key_metrics(visualized)
+    if key_metrics:
+        story.append(Paragraph("Key Statistics", heading_style))
+        metrics_data = [[str(k), str(v)] for k, v in key_metrics.items()]
+        metrics_table = Table(metrics_data, colWidths=[7 * cm, 8 * cm])
+        metrics_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef7")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
+                ]
+            )
+        )
+        story.append(metrics_table)
+        story.append(Spacer(1, 0.5 * cm))
+
     numeric_summary: dict[str, dict[str, float | int]] = visualized.get("numeric_summary") or {}
     if numeric_summary:
         story.append(Paragraph("Numeric Statistics", heading_style))
@@ -172,6 +253,8 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
             )
             story.append(cat_table)
             story.append(Spacer(1, 0.3 * cm))
+
+    _append_data_sample(story, visualized, heading_style=heading_style, body_style=body_style)
 
     chart_paths: list[str] = visualized.get("chart_paths") or []
     if chart_paths:

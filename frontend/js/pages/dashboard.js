@@ -1,5 +1,6 @@
 import { dashboardApi, paymentsApi, previewApi, reportsApi, onError } from "../api.js";
 import { openPreviewModal, showPreviewLoading } from "../components/PreviewModal.js";
+import { bindDownloadButtons, pollTaskAndDownload } from "../download.js";
 import { mountShell } from "../layout.js";
 import { destroyCharts, loadingHtml, registerChart, toast } from "../ui.js";
 import {
@@ -13,6 +14,7 @@ import {
 } from "../utils.js";
 import { navigate } from "../router.js";
 import { OUTPUT_FORMATS } from "../config.js";
+import { state } from "../state.js";
 
 let formatChart = null;
 
@@ -44,7 +46,7 @@ export async function renderDashboard(root) {
             <div>
               <span class="badge ${statusClass(r.status)}">${escapeHtml(r.status)}</span>
               <span class="badge badge-muted">${escapeHtml(r.output_format)}</span>
-              ${r.status === "SUCCESS" ? `<a class="btn btn-sm btn-outline" href="${r.download_url}" target="_blank">⬇</a>` : ""}
+              ${r.status === "SUCCESS" ? `<button type="button" class="btn btn-sm btn-outline" data-download-task="${escapeHtml(r.task_id)}" data-download-format="${escapeHtml(r.output_format || "pdf")}" title="Скачать">⬇</button>` : ""}
             </div>
           </div>`,
             )
@@ -60,9 +62,23 @@ export async function renderDashboard(root) {
     const used = sub.reports_used ?? sub.used_reports ?? 0;
     const limit = sub.reports_limit ?? sub.monthly_reports_limit ?? 5;
     const remaining = sub.reports_remaining ?? sub.remaining_reports ?? limit - used;
-    const usagePct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+    const testingMode = !state.billingEnabled || sub.status === "testing";
+    const usagePct = !testingMode && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
     const expiresHtml = (sub.current_period_end || sub.expires_at)
       ? `<small class="text-muted">до ${formatDate(sub.current_period_end || sub.expires_at)}</small>`
+      : "";
+    const planHtml = testingMode
+      ? `<div class="stat-value" style="font-size:1.25rem">Тестовый режим</div>
+         <small class="text-muted">Лимиты и оплата отключены</small>`
+      : `<div class="stat-value" style="font-size:1.25rem">${escapeHtml(planLabel(sub.plan_type))}</div>
+         ${expiresHtml}`;
+    const usageHtml = testingMode
+      ? `<small class="text-muted">Отчёты без ограничений</small>`
+      : `<small class="text-muted">Отчёты в этом месяце: ${used} / ${limit}</small>
+         <div class="gauge" style="margin-top:.35rem"><div class="gauge-fill" style="width:${usagePct}%"></div></div>
+         <small class="text-muted">Осталось: ${remaining}</small>`;
+    const pricingBtn = state.billingEnabled
+      ? `<button type="button" class="btn btn-outline btn-sm" id="dash-pricing">Управление тарифом</button>`
       : "";
 
     mountShell(
@@ -92,15 +108,12 @@ export async function renderDashboard(root) {
         <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
           <div>
             <small class="text-muted">Текущий тариф</small>
-            <div class="stat-value" style="font-size:1.25rem">${escapeHtml(planLabel(sub.plan_type))}</div>
-            ${expiresHtml}
+            ${planHtml}
           </div>
           <div style="min-width:200px;flex:1;max-width:320px">
-            <small class="text-muted">Отчёты в этом месяце: ${used} / ${limit}</small>
-            <div class="gauge" style="margin-top:.35rem"><div class="gauge-fill" style="width:${usagePct}%"></div></div>
-            <small class="text-muted">Осталось: ${remaining}</small>
+            ${usageHtml}
           </div>
-          <button type="button" class="btn btn-outline btn-sm" id="dash-pricing">Управление тарифом</button>
+          ${pricingBtn}
         </div>
       </div>
       <div class="grid-4" style="margin-bottom:1.5rem">
@@ -121,6 +134,7 @@ export async function renderDashboard(root) {
       </div>`,
       (el) => {
         el.querySelector("#dash-pricing")?.addEventListener("click", () => navigate("/pricing"));
+        bindDownloadButtons(el, onError);
         bindPreviewForm(el);
         drawChart(formatCounts);
       },
@@ -219,10 +233,33 @@ function bindPreviewForm(root) {
         },
         onConfirm: async (body) => {
           const resp = await previewApi.confirm(body);
-          toast(`Отчёт в очереди: ${resp.task_id}`, "success");
+          if (body.email) {
+            toast(`Отчёт отправлен на ${body.email}`, "success");
+            return;
+          }
+          setTimeout(async () => {
+            const hide = showPreviewLoading("Формирование файла…");
+            try {
+              await pollTaskAndDownload(resp.task_id, body.output_format);
+              toast("Файл скачан", "success");
+            } catch (err) {
+              onError(err);
+            } finally {
+              hide();
+            }
+          }, 0);
         },
         onClose: (action) => {
-          if (action === "edit") form.reset();
+          if (action === "edit") {
+            const card = form.closest(".card");
+            card?.scrollIntoView({ behavior: "smooth", block: "center" });
+            card?.classList.add("card-highlight");
+            setTimeout(() => card?.classList.remove("card-highlight"), 2500);
+            toast("Измените файл или ссылку и создайте превью снова");
+            const sheetsInput = form.querySelector('[name="sheets_url"]');
+            if (sheetsInput?.value) sheetsInput.focus();
+            else form.querySelector('[name="file"]')?.focus();
+          }
         },
       });
     } catch (err) {

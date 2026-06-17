@@ -31,6 +31,7 @@ EXEMPT_PATHS = frozenset(
         "/webhooks/yookassa",
         "/webhooks/stripe",
         "/api/payments/prices",
+        "/api/payments/config",
     }
 )
 

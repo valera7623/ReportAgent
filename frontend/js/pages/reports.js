@@ -1,4 +1,5 @@
 import { reportsApi, onError } from "../api.js";
+import { bindDownloadButtons } from "../download.js";
 import { mountShell } from "../layout.js";
 import { confirmDialog, loadingHtml, showModal, toast } from "../ui.js";
 import { formatDate, escapeHtml, statusClass, truncateId } from "../utils.js";
@@ -86,7 +87,7 @@ export async function renderReports(root) {
           <td><span class="badge badge-muted">${escapeHtml(r.output_format)}</span></td>
           <td><span class="badge ${statusClass(r.status)}">${escapeHtml(r.status)}</span></td>
           <td class="td-actions">
-            ${r.status === "SUCCESS" ? `<a class="btn-icon" href="${r.download_url}" target="_blank" title="Скачать">⬇</a>` : ""}
+            ${r.status === "SUCCESS" ? `<button type="button" class="btn-icon" data-download-task="${escapeHtml(r.task_id)}" data-download-format="${escapeHtml(r.output_format || "pdf")}" title="Скачать">⬇</button>` : ""}
             <button class="btn-icon" data-retry="${r.task_id}" data-format="${escapeHtml(r.output_format)}" data-summary="${escapeHtml(r.request_summary)}" title="Повторить">🔄</button>
             <button class="btn-icon" data-delete="${r.task_id}" title="Удалить">🗑</button>
           </td>
@@ -134,6 +135,7 @@ function bindReports(root, f) {
   root.querySelector("#f-reset")?.addEventListener("click", () => setFilters({ page: 1 }));
   root.querySelector("#prev")?.addEventListener("click", () => setFilters({ ...f, page: f.page - 1 }));
   root.querySelector("#next")?.addEventListener("click", () => setFilters({ ...f, page: f.page + 1 }));
+  bindDownloadButtons(root, onError);
 
   root.querySelectorAll("[data-delete]").forEach((btn) => {
     btn.onclick = async () => {

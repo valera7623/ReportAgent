@@ -20,7 +20,8 @@ from app.agents.visualizer import (
     _save_top_bar,
     run_visualizer,
 )
-from app.preview.cache import get_chart_png, preview_storage_dir, store_chart_png
+from app.preview.cache import preview_storage_dir, store_chart_png
+from app.preview.summary import build_key_metrics
 from app.utils.logger import get_logger
 
 logger = get_logger("preview_generator", "log_api.log")
@@ -54,7 +55,7 @@ class PreviewGenerator:
         visualized = run_visualizer(analyzed, preferences=prefs)
 
         df = pd.DataFrame(analyzed["data"])
-        summary = self._generate_summary(df, analyzed)
+        summary = build_key_metrics(analyzed)
         columns = self._detect_column_types(df)
         charts_meta = self._build_charts_from_visualized(preview_id, visualized, prefs)
         chart_specs = visualized.get("_preview_chart_specs") or self._chart_specs_from_meta(charts_meta)
@@ -107,32 +108,6 @@ class PreviewGenerator:
             sheets_url=sheets_url,
             file_path=file_path,
         )
-
-    def _generate_summary(self, df: pd.DataFrame, analyzed: dict[str, Any]) -> dict[str, Any]:
-        numeric_summary = analyzed.get("numeric_summary") or {}
-        categorical_summary = analyzed.get("categorical_summary") or {}
-
-        numeric_cols = list(numeric_summary.keys())
-        total_sales = numeric_summary[numeric_cols[0]]["sum"] if numeric_cols else None
-        avg_profit = (
-            numeric_summary[numeric_cols[1]]["mean"]
-            if len(numeric_cols) > 1
-            else (numeric_summary[numeric_cols[0]]["mean"] if numeric_cols else None)
-        )
-
-        top_category = None
-        for items in categorical_summary.values():
-            if items:
-                top_category = items[0].get("value")
-                break
-
-        return {
-            "total_sales": total_sales,
-            "avg_profit": avg_profit,
-            "top_category": top_category,
-            "row_count": analyzed.get("row_count", len(df)),
-            "column_count": analyzed.get("column_count", len(df.columns)),
-        }
 
     def _detect_column_types(self, df: pd.DataFrame) -> list[dict[str, Any]]:
         columns: list[dict[str, Any]] = []
@@ -215,9 +190,13 @@ class PreviewGenerator:
             elif "trend" in path.name or "line" in path.name:
                 chart_type = "line"
                 title = f"Trend: {column}"
-            elif "hist" in path.name or "bar" in path.name:
+            elif "hist" in path.name:
                 chart_type = "bar"
                 title = f"Distribution: {column}"
+            elif "categorical" in path.name or "top" in path.name:
+                chart_type = "bar"
+                column = text_cols[0] if text_cols else column
+                title = f"Top values: {column}"
 
             specs.append(
                 {

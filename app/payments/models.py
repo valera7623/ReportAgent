@@ -31,6 +31,11 @@ class PricesResponse(BaseModel):
     prices: list[PriceItem]
 
 
+class BillingConfigResponse(BaseModel):
+    billing_enabled: bool
+    stripe_enabled: bool
+
+
 class SubscriptionResponse(BaseModel):
     plan_type: str
     status: str

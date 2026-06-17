@@ -11,6 +11,7 @@ import {
 } from "../utils.js";
 import { SERVICE_LABELS } from "../config.js";
 import { navigate } from "../router.js";
+import { startHealthPolling, stopHealthPolling } from "../health-polling.js";
 
 /* --- Users list --- */
 export async function renderAdminUsers(root) {
@@ -130,15 +131,6 @@ export async function renderAdminUserDetail(root, userId) {
 }
 
 /* --- Health --- */
-let healthTimer = null;
-
-export function stopHealthPolling() {
-  if (healthTimer) {
-    clearInterval(healthTimer);
-    healthTimer = null;
-  }
-}
-
 export async function renderAdminHealth(root) {
   mountShell(root, "Здоровье", loadingHtml());
   stopHealthPolling();
@@ -183,7 +175,7 @@ export async function renderAdminHealth(root) {
   }
 
   await load();
-  healthTimer = setInterval(load, 30000);
+  startHealthPolling(load, 30000);
 }
 
 /* --- Celery --- */

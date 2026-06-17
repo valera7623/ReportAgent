@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.admin.dependency import admin_required
 from app.db.database import get_connection
+from app.payments.billing_config import billing_enabled
 from app.payments.usage_tracker import activate_subscription, cancel_subscription, get_user_subscription
 from app.payments.yookassa_client import YooKassaClient, YooKassaClientError
 from app.utils.metrics import record_yookassa_payment, refresh_active_subscriptions_gauge
@@ -86,6 +87,8 @@ async def yookassa_create_payment(
     request: Request,
     body: YooKassaCreatePaymentRequest,
 ) -> YooKassaCreatePaymentResponse:
+    if not billing_enabled():
+        raise HTTPException(status_code=403, detail="Оплата временно отключена")
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid or inactive API key")
