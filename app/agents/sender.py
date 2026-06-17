@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -33,6 +34,73 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "noreply@reportagent.local")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
+
+TABLE_CONTENT_WIDTH = 16 * cm
+
+
+def _pdf_text(value: Any) -> str:
+    return escape("" if value is None else str(value))
+
+
+def _table_cell_style(
+    body_style: ParagraphStyle,
+    *,
+    bold: bool = False,
+    header: bool = False,
+) -> ParagraphStyle:
+    return ParagraphStyle(
+        f"TableCell_{'Header' if header else 'Bold' if bold else 'Body'}",
+        parent=body_style,
+        fontName=PDF_FONT_BOLD if bold or header else PDF_FONT,
+        fontSize=8,
+        leading=10,
+        textColor=colors.whitesmoke if header else body_style.textColor,
+        wordWrap="CJK",
+    )
+
+
+def _p(value: Any, style: ParagraphStyle) -> Paragraph:
+    return Paragraph(_pdf_text(value), style)
+
+
+def _paragraph_rows(
+    rows: list[list[Any]],
+    cell_style: ParagraphStyle,
+    *,
+    header_style: ParagraphStyle | None = None,
+    label_col: bool = False,
+) -> list[list[Paragraph]]:
+    wrapped: list[list[Paragraph]] = []
+    for row_idx, row in enumerate(rows):
+        if row_idx == 0 and header_style is not None:
+            wrapped.append([_p(cell, header_style) for cell in row])
+            continue
+        if label_col and len(row) >= 2:
+            wrapped.append([_p(row[0], _table_cell_style(cell_style, bold=True)), *[_p(cell, cell_style) for cell in row[1:]]])
+            continue
+        wrapped.append([_p(cell, cell_style) for cell in row])
+    return wrapped
+
+
+def _table_style(*extra: tuple[Any, ...]) -> TableStyle:
+    base: list[tuple[Any, ...]] = [
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]
+    base.extend(extra)
+    return TableStyle(base)
+
+
+def _column_widths(count: int, *, weights: list[float] | None = None) -> list[float]:
+    if count <= 0:
+        return []
+    if weights and len(weights) == count:
+        total = sum(weights)
+        return [TABLE_CONTENT_WIDTH * (weight / total) for weight in weights]
+    return [TABLE_CONTENT_WIDTH / count] * count
 
 
 def _resolve_email(visualized: dict[str, Any], preferences: dict[str, Any] | None) -> str | None:
@@ -59,7 +127,7 @@ def _try_load_logo(logo_url: str | None, task_id: str) -> Path | None:
         return None
 
 
-def _cell_text(value: Any, max_len: int = 36) -> str:
+def _cell_text(value: Any, max_len: int = 120) -> str:
     text = "" if value is None else str(value)
     if len(text) > max_len:
         return text[: max_len - 3] + "..."
@@ -83,6 +151,8 @@ def _append_data_sample(
     shown_cols = columns[:max_cols]
     total_rows = int(visualized.get("row_count") or len(data))
     shown_rows = min(limit, len(data))
+    cell_style = _table_cell_style(body_style)
+    header_style = _table_cell_style(body_style, header=True)
 
     story.append(Paragraph("Data Sample", heading_style))
     story.append(
@@ -93,7 +163,7 @@ def _append_data_sample(
         )
     )
 
-    table_data: list[list[str]] = [shown_cols]
+    table_data: list[list[Any]] = [shown_cols]
     for row in data[:shown_rows]:
         if isinstance(row, dict):
             table_data.append([_cell_text(row.get(col)) for col in shown_cols])
@@ -103,20 +173,16 @@ def _append_data_sample(
             table_data.append([_cell_text(row)])
 
     col_count = len(shown_cols)
-    col_width = min(4 * cm, (16 * cm) / max(col_count, 1))
-    data_table = Table(table_data, colWidths=[col_width] * col_count, repeatRows=1)
+    data_table = Table(
+        _paragraph_rows(table_data, cell_style, header_style=header_style),
+        colWidths=_column_widths(col_count),
+        repeatRows=1,
+    )
     data_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2d3748")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
-                ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
+        _table_style(
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2d3748")),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
         )
     )
     story.append(data_table)
@@ -149,6 +215,8 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
         parent=styles["BodyText"],
         fontName=PDF_FONT,
     )
+    table_cell = _table_cell_style(body_style)
+    table_header = _table_cell_style(body_style, header=True)
 
     doc = SimpleDocTemplate(
         str(pdf_path),
@@ -178,17 +246,15 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
         ["Columns", str(visualized.get("column_count", "—"))],
         ["Recipient", visualized.get("email", "—")],
     ]
-    overview_table = Table(overview_data, colWidths=[5 * cm, 10 * cm])
+    overview_table = Table(
+        _paragraph_rows(overview_data, table_cell, label_col=True),
+        colWidths=[5 * cm, 11 * cm],
+    )
     overview_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef7")),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
-                ("FONTNAME", (0, 0), (0, -1), PDF_FONT_BOLD),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
-            ]
+        _table_style(
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef7")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
         )
     )
     story.append(overview_table)
@@ -198,16 +264,15 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
     if key_metrics:
         story.append(Paragraph("Key Statistics", heading_style))
         metrics_data = [[str(k), str(v)] for k, v in key_metrics.items()]
-        metrics_table = Table(metrics_data, colWidths=[7 * cm, 8 * cm])
+        metrics_table = Table(
+            _paragraph_rows(metrics_data, table_cell, label_col=True),
+            colWidths=[7 * cm, 9 * cm],
+        )
         metrics_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef7")),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
-                    ("FONTNAME", (0, 0), (0, -1), PDF_FONT_BOLD),
-                    ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
-                ]
+            _table_style(
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eef7")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
             )
         )
         story.append(metrics_table)
@@ -228,17 +293,16 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
                     str(stats.get("count", "—")),
                 ]
             )
-        num_table = Table(table_data, repeatRows=1)
+        num_table = Table(
+            _paragraph_rows(table_data, table_cell, header_style=table_header),
+            colWidths=_column_widths(6, weights=[3, 2, 2, 2, 2, 2]),
+            repeatRows=1,
+        )
         num_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4C72B0")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
-                    ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f4f8")]),
-                ]
+            _table_style(
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4C72B0")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f4f8")]),
             )
         )
         story.append(num_table)
@@ -252,16 +316,14 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
             cat_data = [["Value", "Count", "%"]]
             for item in items:
                 cat_data.append([item["value"], str(item["count"]), f"{item['percent']}%"])
-            cat_table = Table(cat_data, colWidths=[7 * cm, 3 * cm, 3 * cm])
+            cat_table = Table(
+                _paragraph_rows(cat_data, table_cell, header_style=table_header),
+                colWidths=_column_widths(3, weights=[7, 2, 2]),
+            )
             cat_table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#55A868")),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                        ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
-                        ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
-                    ]
+                _table_style(
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#55A868")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 )
             )
             story.append(cat_table)
