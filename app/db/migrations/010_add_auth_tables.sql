@@ -1,5 +1,5 @@
 -- Email/password authentication columns for users table.
--- Note: api_key remains NOT NULL; auth-only users get placeholder pending_<user_id>.
+-- Note: api_key remains NOT NULL, auth-only users get placeholder pending_<user_id>.
 
 ALTER TABLE users ADD COLUMN password_hash TEXT;
 ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0;

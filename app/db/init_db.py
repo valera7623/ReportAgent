@@ -16,9 +16,19 @@ MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 _ADD_COLUMN_RE = re.compile(r"^\s*ALTER\s+TABLE\s+.+\s+ADD\s+COLUMN\s+", re.IGNORECASE)
 
 
+def _strip_sql_comments(sql: str) -> str:
+    """Remove line comments so semicolons inside comments are not split as statements."""
+    lines = []
+    for line in sql.splitlines():
+        if line.lstrip().startswith("--"):
+            continue
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def _execute_migration_sql(conn: sqlite3.Connection, sql: str, filename: str) -> None:
     """Run migration statements; ignore duplicate ADD COLUMN on re-apply."""
-    statements = [s.strip() for s in sql.split(";") if s.strip()]
+    statements = [s.strip() for s in _strip_sql_comments(sql).split(";") if s.strip()]
     for statement in statements:
         try:
             conn.execute(statement)
