@@ -8,6 +8,29 @@
 
 let initialized = false;
 
+/** Hash paths not sent to GA4 / Yandex (admin UI, same as SEO noindex). */
+const ANALYTICS_EXCLUDED_PREFIXES = ["/admin"];
+
+function normalizeAnalyticsPath(path) {
+  const raw = String(path || "");
+  const hashIdx = raw.indexOf("#");
+  if (hashIdx >= 0) {
+    const fromHash = raw.slice(hashIdx + 1).split("?")[0];
+    if (fromHash) {
+      return fromHash.startsWith("/") ? fromHash : `/${fromHash}`;
+    }
+  }
+  const base = raw.split("?")[0];
+  return base.startsWith("/") ? base : `/${base}`;
+}
+
+function isAnalyticsExcluded(path) {
+  const normalized = normalizeAnalyticsPath(path);
+  return ANALYTICS_EXCLUDED_PREFIXES.some(
+    (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
+  );
+}
+
 function ga4Id() {
   return (typeof window !== "undefined" && window.REPORTAGENT_GA4_ID) || "";
 }
@@ -80,6 +103,9 @@ export function initAnalytics() {
 
 export function trackPageView(path) {
   const pagePath = path || `${window.location.pathname}${window.location.hash || ""}`;
+  if (isAnalyticsExcluded(pagePath)) return;
+
+  const hashPath = normalizeAnalyticsPath(pagePath);
   const pageLocation = window.location.href;
   const pageTitle = document.title;
 
@@ -88,7 +114,7 @@ export function trackPageView(path) {
     window.gtag("event", "page_view", {
       page_title: pageTitle,
       page_location: pageLocation,
-      page_path: pagePath,
+      page_path: hashPath,
     });
   }
 
