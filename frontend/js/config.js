@@ -16,6 +16,14 @@ export const OUTPUT_FORMATS = [
   { value: "google_slides", label: "Google Slides" },
 ];
 
+/** Formats hosted externally (Notion / Google Slides) — open URL, not file download. */
+export const EXTERNAL_FORMATS = new Set(["notion", "google_slides"]);
+
+export const EXTERNAL_FORMAT_LABELS = {
+  notion: "Notion",
+  google_slides: "Google Slides",
+};
+
 export const REPORT_STATUSES = ["PENDING", "STARTED", "SUCCESS", "FAILURE", "REVOKED"];
 
 export const WEBHOOK_EVENTS = ["report.completed", "report.failed"];

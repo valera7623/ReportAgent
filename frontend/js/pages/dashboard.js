@@ -1,6 +1,7 @@
 import { dashboardApi, paymentsApi, previewApi, reportsApi, onError } from "../api.js";
 import { openPreviewModal, showPreviewLoading } from "../components/PreviewModal.js";
-import { bindDownloadButtons, pollTaskAndDownload } from "../download.js";
+import { bindDownloadButtons, downloadSuccessMessage, pollTaskAndDownload, pollTaskUntilSuccess } from "../download.js";
+import { EXTERNAL_FORMAT_LABELS, EXTERNAL_FORMATS } from "../config.js";
 import { mountShell } from "../layout.js";
 import { destroyCharts, loadingHtml, registerChart, toast } from "../ui.js";
 import {
@@ -134,7 +135,7 @@ export async function renderDashboard(root) {
       </div>`,
       (el) => {
         el.querySelector("#dash-pricing")?.addEventListener("click", () => navigate("/pricing"));
-        bindDownloadButtons(el, onError);
+        bindDownloadButtons(el, onError, (msg) => toast(msg, "success"));
         bindPreviewForm(el);
         drawChart(formatCounts);
       },
@@ -233,15 +234,31 @@ function bindPreviewForm(root) {
         },
         onConfirm: async (body) => {
           const resp = await previewApi.confirm(body);
-          if (body.email) {
+          const isExternal = EXTERNAL_FORMATS.has(body.output_format);
+          if (body.email && isExternal) {
+            const hide = showPreviewLoading("Создание отчёта…");
+            try {
+              await pollTaskUntilSuccess(resp.task_id);
+              const label = EXTERNAL_FORMAT_LABELS[body.output_format] || "внешнем сервисе";
+              toast(`Ссылка на отчёт в ${label} отправлена на ${body.email}`, "success");
+            } catch (err) {
+              onError(err);
+            } finally {
+              hide();
+            }
+            return;
+          }
+          if (body.email && !isExternal) {
             toast(`Отчёт отправлен на ${body.email}`, "success");
             return;
           }
           setTimeout(async () => {
-            const hide = showPreviewLoading("Формирование файла…");
+            const hide = showPreviewLoading(
+              isExternal ? "Создание отчёта…" : "Формирование файла…",
+            );
             try {
-              await pollTaskAndDownload(resp.task_id, body.output_format);
-              toast("Файл скачан", "success");
+              const result = await pollTaskAndDownload(resp.task_id, body.output_format);
+              toast(downloadSuccessMessage(body.output_format, result.download), "success");
             } catch (err) {
               onError(err);
             } finally {

@@ -38,9 +38,12 @@ export function renderShell(contentHtml, title = "") {
 
   return `
     <div class="layout ${state.sidebarOpen ? "sidebar-open" : ""}">
-      <div class="sidebar-backdrop" data-action="close-sidebar"></div>
-      <aside class="sidebar">
-        <div class="sidebar-brand">🛡️ ReportAgent</div>
+      <div class="sidebar-backdrop" data-action="close-sidebar" aria-hidden="true"></div>
+      <aside class="sidebar" id="app-sidebar" aria-label="Навигация">
+        <div class="sidebar-brand">
+          <span>🛡️ ReportAgent</span>
+          <button type="button" class="sidebar-close btn-icon" data-action="close-sidebar" aria-label="Закрыть меню">&times;</button>
+        </div>
         <nav class="sidebar-nav">
           ${userNav.map((n) => navLink(n, current)).join("")}
           ${adminSection}
@@ -48,7 +51,11 @@ export function renderShell(contentHtml, title = "") {
       </aside>
       <div class="main">
         <header class="header">
-          <button type="button" class="btn-icon menu-btn" data-action="toggle-sidebar">☰</button>
+          <button type="button" class="menu-btn" data-action="toggle-sidebar" aria-label="Открыть меню" aria-expanded="${state.sidebarOpen ? "true" : "false"}" aria-controls="app-sidebar">
+            <span class="menu-btn-bar" aria-hidden="true"></span>
+            <span class="menu-btn-bar" aria-hidden="true"></span>
+            <span class="menu-btn-bar" aria-hidden="true"></span>
+          </button>
           <p class="header-title" role="heading" aria-level="2">${escapeHtml(title)}</p>
           <div class="header-actions">
             <span class="key-badge" title="Текущий ключ">🔑 ${escapeHtml(prefix)}${state.isAdmin ? ' <span class="badge">Admin</span>' : ""}</span>
@@ -63,14 +70,42 @@ export function renderShell(contentHtml, title = "") {
 
 export function mountShell(root, title, contentHtml, bindExtra) {
   root.innerHTML = renderShell(contentHtml, title);
-  root.querySelector('[data-action="toggle-sidebar"]')?.addEventListener("click", () => toggleSidebar());
-  root.querySelector('[data-action="close-sidebar"]')?.addEventListener("click", () => toggleSidebar(false));
+  bindSidebar(root);
   root.querySelector('[data-action="toggle-theme"]')?.addEventListener("click", () => toggleTheme());
   root.querySelector('[data-action="logout"]')?.addEventListener("click", () => {
     logout();
     navigate("/login");
   });
   bindExtra?.(root);
+}
+
+function bindSidebar(root) {
+  const layout = root.querySelector(".layout");
+  const menuBtn = root.querySelector(".menu-btn");
+
+  const applySidebar = (open) => {
+    layout?.classList.toggle("sidebar-open", open);
+    menuBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+    document.body.classList.toggle("sidebar-open-body", open);
+  };
+
+  applySidebar(state.sidebarOpen);
+
+  const setSidebar = (open) => {
+    toggleSidebar(open);
+    applySidebar(state.sidebarOpen);
+  };
+
+  root.querySelector('[data-action="toggle-sidebar"]')?.addEventListener("click", () => setSidebar());
+  root.querySelectorAll('[data-action="close-sidebar"]').forEach((el) => {
+    el.addEventListener("click", () => setSidebar(false));
+  });
+
+  root.querySelectorAll(".sidebar-nav .nav-link").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (window.matchMedia("(max-width: 1023px)").matches) setSidebar(false);
+    });
+  });
 }
 
 export function initLayoutSubscription(renderFn) {

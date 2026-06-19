@@ -63,6 +63,34 @@ def _source_type_label(
     return "unknown"
 
 
+def _send_external_report_email(
+    to_email: str,
+    *,
+    output_format: str,
+    external_url: str,
+    task_id: str,
+) -> None:
+    from app.auth.email_service import send_email
+
+    labels = {"notion": "Notion", "google_slides": "Google Slides"}
+    label = labels.get(output_format, output_format)
+    subject = f"ReportAgent — отчёт в {label}"
+    html = f"""
+    <html><body>
+      <h2>Ваш отчёт готов</h2>
+      <p>Отчёт создан в {label}.</p>
+      <p><a href="{external_url}">Открыть отчёт</a></p>
+      <p>ID задачи: {task_id}</p>
+    </body></html>
+    """
+    if not send_email(to_email, subject, html):
+        logger.warning(
+            "SMTP not configured or failed; external link for task %s not emailed to %s",
+            task_id,
+            to_email,
+        )
+
+
 def _build_task_result(
     task_id: str,
     visualized: dict[str, Any],
@@ -246,12 +274,22 @@ def _run_report_pipeline(
             user_preferences=prefs,
         )
 
-        return _build_task_result(
+        recipient = email or visualized.get("email")
+        result = _build_task_result(
             task_id,
             visualized,
             formatted,
-            email or visualized.get("email"),
+            recipient,
         )
+        if recipient and formatted.external_url and fmt in EXTERNAL_FORMATS:
+            _send_external_report_email(
+                recipient,
+                output_format=fmt,
+                external_url=formatted.external_url,
+                task_id=task_id,
+            )
+            result["message"] = f"Report link sent to {recipient}"
+        return result
     finally:
         report_generation_duration_seconds.labels(source_type=source_type).observe(
             time.perf_counter() - started

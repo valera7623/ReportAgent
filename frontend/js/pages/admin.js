@@ -80,9 +80,13 @@ export async function renderAdminUsers(root) {
         el.querySelectorAll("[data-del-user]").forEach((b) => {
           b.onclick = async () => {
             if (!(await confirmDialog("Удалить пользователя?", "Каскадное удаление."))) return;
-            await adminApi.deleteUser(b.dataset.delUser);
-            toast("Удалён", "success");
-            renderAdminUsers(root);
+            try {
+              await adminApi.deleteUser(b.dataset.delUser);
+              toast("Удалён", "success");
+              renderAdminUsers(root);
+            } catch (err) {
+              onError(err);
+            }
           };
         });
       },

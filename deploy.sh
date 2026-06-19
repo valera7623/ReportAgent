@@ -4,17 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-NETWORK_NAME="traefik_network"
+NETWORK_NAME="reportagent_edge"
 COMPOSE_FILE="docker-compose.prod.yml"
 
 echo "==> ReportAgent production deploy"
-
-if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
-  echo "==> Creating Docker network: $NETWORK_NAME"
-  docker network create "$NETWORK_NAME"
-else
-  echo "==> Docker network $NETWORK_NAME already exists"
-fi
 
 if [[ -f .env ]]; then
   echo "==> Loading environment from .env"
@@ -24,6 +17,28 @@ if [[ -f .env ]]; then
   set +a
 else
   echo "WARNING: .env not found. Copy .env.example to .env and configure it."
+fi
+
+TRAEFIK_ENABLED="${TRAEFIK_ENABLED:-true}"
+OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}"
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+COMPOSE_PROFILE_ARGS=()
+
+if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
+  echo "==> Mode: standalone Traefik (ReportAgent owns ports 80/443)"
+  COMPOSE_ARGS+=(-f docker-compose.prod.traefik.yml)
+  COMPOSE_PROFILE_ARGS+=(--profile traefik)
+  if [[ "${SKIP_PORT_CHECK:-0}" != "1" ]]; then
+    ./scripts/preflight-prod.sh
+  fi
+else
+  echo "==> Mode: standalone (isolated from SMDG Docker networks)"
+  echo "    API on host :8000, Grafana on :3000"
+  echo "    Edge proxy (smdg-nginx) → http://172.17.0.1:8000 (see docs/smdg-edge-proxy.example.conf)"
+  if [[ -n "${EXTERNAL_NGINX_NETWORK:-}" ]]; then
+    echo "WARNING: EXTERNAL_NGINX_NETWORK is deprecated; unset it for SMDG independence."
+  fi
+  COMPOSE_ARGS+=(-f docker-compose.prod.standalone.yml)
 fi
 
 DOMAIN="${DOMAIN:-your-domain}"
@@ -59,27 +74,6 @@ elif docker info >/dev/null 2>&1; then
   GRAFANA_BASICAUTH_USERS="$(docker run --rm httpd:2.4-alpine htpasswd -nbB "${GRAFANA_ADMIN_USER}" "${GRAFANA_ADMIN_PASSWORD}" | sed -e 's/\$/$$/g')"
 else
   echo "WARNING: htpasswd not found; Grafana Traefik basic auth uses compose default."
-fi
-
-TRAEFIK_ENABLED="${TRAEFIK_ENABLED:-true}"
-OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}"
-COMPOSE_ARGS=(-f "$COMPOSE_FILE")
-COMPOSE_PROFILE_ARGS=()
-
-if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
-  echo "==> Mode: Traefik (ports 80/443)"
-  COMPOSE_PROFILE_ARGS+=(--profile traefik)
-  if [[ "${SKIP_PORT_CHECK:-0}" != "1" ]]; then
-    ./scripts/preflight-prod.sh
-  fi
-else
-  if [[ -n "${EXTERNAL_NGINX_NETWORK:-}" ]]; then
-    echo "==> Mode: existing Docker nginx (network: ${EXTERNAL_NGINX_NETWORK})"
-    COMPOSE_ARGS+=(-f docker-compose.prod.external-nginx.yml)
-  else
-    echo "==> Mode: host nginx (Traefik disabled, FastAPI on 127.0.0.1:8000)"
-    COMPOSE_ARGS+=(-f docker-compose.prod.host-nginx.yml)
-  fi
 fi
 
 if [[ "$OBSERVABILITY_HOST_METRICS" == "true" ]]; then
@@ -172,10 +166,9 @@ if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
   echo "  Metrics:     https://${DOMAIN}/metrics"
   echo "  Grafana:     https://${GRAFANA_DOMAIN}/d/ReportAgent-Main/reportagent-main"
   echo "  Grafana login: ${GRAFANA_ADMIN_USER} / (see GRAFANA_ADMIN_PASSWORD in .env or log above)"
-elif [[ -n "${EXTERNAL_NGINX_NETWORK:-}" ]]; then
-  echo "Deploy complete. Add nginx proxy → http://reportagent_fastapi:8000"
-  echo "See docs/nginx-docker-existing.example.conf"
-else
-  echo "Deploy complete. Configure nginx → http://127.0.0.1:8000 (see docs/nginx-host.example.conf)"
-  echo "Local check: curl http://127.0.0.1:8000/health"
+elif [[ "$TRAEFIK_ENABLED" != "true" ]]; then
+  echo "Deploy complete (standalone, no SMDG Docker network)."
+  echo "  API:     http://127.0.0.1:8000/health"
+  echo "  Public:  configure smdg-nginx → http://172.17.0.1:8000 (docs/smdg-edge-proxy.example.conf)"
+  echo "  Grafana: http://127.0.0.1:3000 (proxy ${GRAFANA_DOMAIN} → :3000)"
 fi

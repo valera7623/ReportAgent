@@ -298,7 +298,7 @@ def unblock_user_admin(user_id: str) -> bool:
 
 
 def delete_user_admin(user_id: str) -> dict[str, int] | None:
-    """Delete user cascade. Returns counts or None if not found."""
+    """Delete user and related rows. Returns counts or None if not found."""
     with get_connection() as conn:
         row = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
         if row is None:
@@ -313,6 +313,12 @@ def delete_user_admin(user_id: str) -> dict[str, int] | None:
             (user_id,),
         ).fetchone()
 
+        # history.user_id has no ON DELETE CASCADE (001_init.sql)
+        conn.execute("DELETE FROM history WHERE user_id = ?", (user_id,))
+        conn.execute(
+            "DELETE FROM rate_limits WHERE scope_id = ? AND scope_id != '__global__'",
+            (user_id,),
+        )
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
 
     return {

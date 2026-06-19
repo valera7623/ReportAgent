@@ -1,0 +1,74 @@
+# Own Traefik edge (ports 80/443). Use when SMDG nginx is not on 80/443.
+# Set TRAEFIK_ENABLED=true. Requires free ports 80 and 443.
+
+services:
+  fastapi:
+    networks:
+      - internal
+      - traefik_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_network"
+      - "traefik.http.routers.reportagent.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.reportagent.entrypoints=websecure"
+      - "traefik.http.routers.reportagent.tls=true"
+      - "traefik.http.routers.reportagent.tls.certresolver=letsencrypt"
+      - "traefik.http.services.reportagent.loadbalancer.server.port=8000"
+      - "traefik.http.routers.reportagent-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.reportagent-http.entrypoints=web"
+      - "traefik.http.routers.reportagent-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+  grafana:
+    networks:
+      - internal
+      - traefik_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_network"
+      - "traefik.http.routers.grafana.rule=Host(`${GRAFANA_DOMAIN:-grafana.local}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.grafana.middlewares=grafana-auth"
+      - "traefik.http.middlewares.grafana-auth.basicauth.users=${GRAFANA_BASICAUTH_USERS:-admin:$$apr1$$H6uskkWW$$IgXDT4vueRhTRrZF8Ccgt.}"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana-http.rule=Host(`${GRAFANA_DOMAIN:-grafana.local}`)"
+      - "traefik.http.routers.grafana-http.entrypoints=web"
+      - "traefik.http.routers.grafana-http.middlewares=redirect-to-https"
+
+  traefik:
+    profiles: ["traefik"]
+    image: ${TRAEFIK_IMAGE:-traefik:v3.0}
+    container_name: reportagent_traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@example.com}
+      - ACME_CA_SERVER=${ACME_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./traefik/acme:/etc/traefik/acme
+      - ./logs:/var/log/traefik
+    networks:
+      - traefik_network
+      - internal
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  traefik_network:
+    name: reportagent_edge
+    driver: bridge

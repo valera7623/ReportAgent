@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 from celery.result import AsyncResult
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -421,9 +421,16 @@ async def download_report_pdf(task_id: str) -> FileResponse:
 
 
 @app.get("/tasks/{task_id}/export")
-async def export_report(task_id: str) -> Response:
+async def export_report(
+    task_id: str,
+    request: Request,
+    as_json: bool = Query(False, description="Return external_url as JSON instead of HTTP redirect"),
+) -> Response:
     """
     Download formatted report or redirect to external URL (Notion / Google Slides).
+
+    For Notion/Google Slides use ``?as_json=1`` or ``Accept: application/json`` to avoid
+    opaque cross-origin redirects in browser fetch (HTTP status 0).
     """
     payload = _get_task_result_or_raise(task_id)
     output_format = payload.get("output_format", "pdf")
@@ -431,6 +438,14 @@ async def export_report(task_id: str) -> Response:
 
     external_url = payload.get("external_url")
     if external_url:
+        wants_json = as_json or "application/json" in request.headers.get("accept", "")
+        if wants_json:
+            return JSONResponse(
+                content={
+                    "external_url": external_url,
+                    "output_format": output_format,
+                }
+            )
         return RedirectResponse(url=external_url, status_code=302)
 
     if output_format == "pdf":

@@ -135,7 +135,7 @@ function bindReports(root, f) {
   root.querySelector("#f-reset")?.addEventListener("click", () => setFilters({ page: 1 }));
   root.querySelector("#prev")?.addEventListener("click", () => setFilters({ ...f, page: f.page - 1 }));
   root.querySelector("#next")?.addEventListener("click", () => setFilters({ ...f, page: f.page + 1 }));
-  bindDownloadButtons(root, onError);
+  bindDownloadButtons(root, onError, (msg) => toast(msg, "success"));
 
   root.querySelectorAll("[data-delete]").forEach((btn) => {
     btn.onclick = async () => {
