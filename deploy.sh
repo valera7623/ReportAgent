@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-NETWORK_NAME="reportagent_edge"
 COMPOSE_FILE="docker-compose.prod.yml"
 
 echo "==> ReportAgent production deploy"
