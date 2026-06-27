@@ -10,6 +10,7 @@ const userNavAll = [
   { path: "/pricing", label: "Тарифы", icon: "💳", billing: true },
   { path: "/subscription", label: "Подписка", icon: "⭐", billing: true },
   { path: "/preferences", label: "Настройки", icon: "⚙️" },
+  { href: "/help/", label: "Документы", icon: "📚", external: true },
 ];
 
 const adminNav = [
@@ -22,6 +23,9 @@ const adminNav = [
 ];
 
 function navLink(item, current) {
+  if (item.external) {
+    return `<a href="${item.href}" class="nav-link" target="_blank" rel="noopener"><span>${item.icon}</span>${item.label}</a>`;
+  }
   const active = current === item.path ? "active" : "";
   return `<a href="#${item.path}" class="nav-link ${active}"><span>${item.icon}</span>${item.label}</a>`;
 }
