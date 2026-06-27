@@ -34,6 +34,7 @@ from app.routers import (
     admin,
     admin_self_healing,
     admin_webhooks,
+    ai_enhancer,
     api_keys,
     auth,
     dashboard,
@@ -111,6 +112,7 @@ app.include_router(stripe_webhook_router)
 app.include_router(dashboard.router)
 app.include_router(reports_api.router)
 app.include_router(preview.router)
+app.include_router(ai_enhancer.router)
 
 
 def _download_url_for_format(task_id: str, output_format: str) -> str:

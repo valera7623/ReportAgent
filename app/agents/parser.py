@@ -276,6 +276,20 @@ def validate_request(
         _extract_sheet_id(sheets_url)
 
 
+def load_dataframe(*, file_path: str | Path | None = None, sheets_url: str | None = None) -> pd.DataFrame:
+    """Load and normalize a DataFrame from upload path or Google Sheets URL."""
+    if file_path:
+        df = _read_uploaded_file(Path(file_path))
+    elif sheets_url:
+        df = _fetch_google_sheet(sheets_url)
+    else:
+        raise AgentError(
+            "No data source provided. Upload a file or provide a Google Sheets URL.",
+            agent="parser",
+        )
+    return _normalize_dataframe(df)
+
+
 def save_upload(file_content: bytes, original_filename: str) -> Path:
     """Persist uploaded bytes to disk and return the path."""
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

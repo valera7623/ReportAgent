@@ -579,6 +579,58 @@ Intent parser распознаёт формат из речи:
 python3 scripts/test_formats.py
 ```
 
+## AI Enhancer
+
+Автоматическое определение колонок, предложение типов графиков и генерация описаний/инсайтов с помощью GPT (или эвристик без API-ключа).
+
+### Переменные окружения
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `AI_ENHANCER_ENABLED` | `true` | Включить AI-анализ |
+| `AI_ENHANCER_MODEL` | `gpt-4o-mini` | Модель OpenAI |
+| `AI_ENHANCER_CACHE_TTL` | `86400` | TTL кэша Redis (сек) |
+| `AI_ENHANCER_MAX_ROWS` | `10000` | Макс. строк для промпта |
+
+При `AI_ENHANCER_ENABLED=false` или без `OPENAI_API_KEY` используются **эвристики** (fallback).
+
+### API
+
+**POST /api/reports/analyze** — AI-рекомендации по файлу:
+
+```bash
+curl -X POST https://ваш-домен/api/reports/analyze \
+  -H "X-API-Key: $API_KEY" \
+  -F "file=@samples/sample_sales.csv"
+```
+
+**POST /api/reports/generate-with-ai** — генерация отчёта с AI-рекомендациями:
+
+```bash
+curl -X POST https://ваш-домен/api/reports/generate-with-ai \
+  -H "X-API-Key: $API_KEY" \
+  -F "file=@samples/sample_sales.csv" \
+  -F "output_format=pdf"
+```
+
+### Кэширование
+
+- Redis: `ai_suggestions:{file_hash}` (TTL 24 ч)
+- SQLite: таблица `ai_suggestions` (миграция `030_add_ai_suggestions.sql`)
+
+### Веб-интерфейс
+
+После загрузки файла на дашборде выполняется AI-анализ → модальное окно с рекомендациями → **«Согласиться»** или **«Настроить вручную»** (превью).
+
+### Тест
+
+```bash
+python3 scripts/test_ai_enhancer.py
+python3 scripts/test_ai_enhancer.py --csv samples/sample_sales.csv --no-ai
+```
+
+---
+
 ## Voice input
 
 Голосовой запрос: аудио → Whisper (транскрипция) → GPT-4o-mini (intent) → отчёт или уточняющий вопрос.

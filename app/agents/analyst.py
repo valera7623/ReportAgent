@@ -39,8 +39,18 @@ def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = Non
         if df.empty:
             raise AgentError("No data available for analysis.", agent="analyst")
 
+        ai_suggestions: dict[str, Any] = parsed.get("ai_suggestions") or {}
+        ai_columns = ai_suggestions.get("columns") or {}
+
         numeric_cols: list[str] = parsed.get("numeric_columns") or []
         text_cols: list[str] = parsed.get("text_columns") or []
+
+        if ai_columns.get("numeric"):
+            numeric_cols = [c for c in ai_columns["numeric"] if c in df.columns] or numeric_cols
+        if ai_columns.get("category"):
+            text_cols = [c for c in ai_columns["category"] if c in df.columns] or text_cols
+
+        ai_aggregations: dict[str, list[str]] = ai_suggestions.get("aggregations") or {}
 
         fix_ctx = get_active_fix_context()
         column_remap = fix_ctx.get("_column_remap") or {}
@@ -54,13 +64,17 @@ def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = Non
             series = pd.to_numeric(df[col], errors="coerce").dropna()
             if series.empty:
                 continue
-            numeric_summary[col] = {
+            summary: dict[str, float | int] = {
                 "sum": round(float(series.sum()), 2),
                 "mean": round(float(series.mean()), 2),
                 "min": round(float(series.min()), 2),
                 "max": round(float(series.max()), 2),
                 "count": int(series.count()),
             }
+            requested = [a.lower() for a in ai_aggregations.get(col, [])]
+            if "median" in requested:
+                summary["median"] = round(float(series.median()), 2)
+            numeric_summary[col] = summary
 
         cat_top_n = 10 if preferred_chart == "pie" else 3
         categorical_summary: dict[str, list[dict[str, Any]]] = {}
@@ -99,6 +113,9 @@ def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = Non
                 "preferred_chart_type": preferred_chart,
                 "pie_columns": pie_candidates[:1] if pie_candidates else [],
             },
+            "ai_suggestions": ai_suggestions,
+            "ai_description": ai_suggestions.get("description", ""),
+            "ai_insights": ai_suggestions.get("insights") or [],
         }
 
         logger.info(

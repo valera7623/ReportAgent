@@ -260,6 +260,18 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
     story.append(overview_table)
     story.append(Spacer(1, 0.5 * cm))
 
+    ai_description = visualized.get("ai_description") or (visualized.get("ai_suggestions") or {}).get("description")
+    ai_insights: list[str] = visualized.get("ai_insights") or (visualized.get("ai_suggestions") or {}).get("insights") or []
+    if ai_description:
+        story.append(Paragraph("AI Summary", heading_style))
+        story.append(Paragraph(_pdf_text(ai_description), body_style))
+        story.append(Spacer(1, 0.35 * cm))
+    if ai_insights:
+        story.append(Paragraph("Key Insights", heading_style))
+        for insight in ai_insights[:5]:
+            story.append(Paragraph(f"• {_pdf_text(insight)}", body_style))
+        story.append(Spacer(1, 0.35 * cm))
+
     key_metrics = build_key_metrics(visualized)
     if key_metrics:
         story.append(Paragraph("Key Statistics", heading_style))

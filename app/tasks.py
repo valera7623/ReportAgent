@@ -232,6 +232,7 @@ def _run_report_pipeline(
     voice: bool = False,
     output_format: str | None = None,
     preview_id: str | None = None,
+    ai_suggestions: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     prefs = preferences or get_user_preferences(api_key)
     fmt = resolve_output_format(output_format, prefs)
@@ -249,6 +250,8 @@ def _run_report_pipeline(
             sheets_url=sheets_url,
             file_path=file_path,
         )
+        if ai_suggestions:
+            parsed["ai_suggestions"] = ai_suggestions
         analyzed = run_analyst(parsed, preferences=prefs)
         if preview_id:
             from app.preview.charts import import_preview_charts
@@ -305,6 +308,7 @@ def generate_report(
     api_key: str | None = None,
     output_format: str | None = None,
     preview_id: str | None = None,
+    ai_suggestions: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run context_loader → parser → analyst → visualizer → formatter pipeline."""
     task_id = self.request.id or "unknown"
@@ -339,6 +343,7 @@ def generate_report(
             api_key=api_key,
             output_format=output_format,
             preview_id=preview_id,
+            ai_suggestions=ai_suggestions,
         )
         logger.info("Task %s completed successfully (format=%s)", task_id, result.get("output_format"))
         duration = time.perf_counter() - started

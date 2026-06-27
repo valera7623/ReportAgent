@@ -129,6 +129,17 @@ export const previewApi = {
     }),
 };
 
+export const aiApi = {
+  analyze: (formData) =>
+    api("/api/reports/analyze", { method: "POST", body: formData, headers: headers(false) }),
+  generateWithAi: (formData) =>
+    api("/api/reports/generate-with-ai", {
+      method: "POST",
+      body: formData,
+      headers: headers(false),
+    }),
+};
+
 export const keysApi = {
   list: () => api("/api/keys"),
   generate: (body) => {

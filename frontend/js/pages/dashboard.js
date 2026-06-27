@@ -1,5 +1,6 @@
-import { dashboardApi, paymentsApi, previewApi, reportsApi, onError } from "../api.js";
+import { dashboardApi, paymentsApi, previewApi, reportsApi, aiApi, onError } from "../api.js";
 import { openPreviewModal, showPreviewLoading } from "../components/PreviewModal.js";
+import { openAISuggestionsModal } from "../components/AISuggestionsModal.js";
 import { bindDownloadButtons, downloadSuccessMessage, pollTaskAndDownload, pollTaskUntilSuccess } from "../download.js";
 import { EXTERNAL_FORMAT_LABELS, EXTERNAL_FORMATS } from "../config.js";
 import { mountShell } from "../layout.js";
@@ -101,7 +102,7 @@ export async function renderDashboard(root) {
               <input type="url" name="sheets_url" class="input" placeholder="https://docs.google.com/spreadsheets/d/..." />
             </div>
             <button type="submit" class="btn" id="preview-submit-btn">Создать превью</button>
-            <p class="text-muted" style="margin-top:.75rem">Сначала просмотрите таблицу и графики, затем скачайте или отправьте на почту.</p>
+            <p class="text-muted" style="margin-top:.75rem">После загрузки файла выполняется AI-анализ. Можно принять рекомендации или настроить вручную через превью.</p>
           </form>
         </div>
       </div>
@@ -203,15 +204,87 @@ function bindPreviewForm(root) {
 
     const submitBtn = form.querySelector("#preview-submit-btn");
     submitBtn.disabled = true;
-    let hideLoading = showPreviewLoading(
-      hasFile && file.size > 10 * 1024 * 1024 ? "Большой файл — генерация в фоне…" : "Генерация превью…",
-    );
+    let hideLoading = showPreviewLoading("AI-анализ данных…");
 
     try {
       const uploadFd = new FormData();
       if (hasFile) uploadFd.append("file", file);
       if (sheets) uploadFd.append("sheets_url", sheets);
 
+      let aiResult;
+      try {
+        aiResult = await aiApi.analyze(uploadFd);
+      } catch (aiErr) {
+        hideLoading();
+        hideLoading = showPreviewLoading("AI недоступен — создаём превью…");
+        aiResult = null;
+        console.warn("AI analyze failed:", aiErr);
+      }
+
+      if (aiResult) {
+        hideLoading();
+        hideLoading = () => {};
+
+        let pendingUploadFd = uploadFd;
+        openAISuggestionsModal({
+          suggestions: aiResult,
+          onAccept: async ({ email, output_format, suggestions }) => {
+            const genFd = new FormData();
+            if (hasFile) genFd.append("file", file);
+            if (sheets) genFd.append("sheets_url", sheets);
+            if (email) genFd.append("email", email);
+            genFd.append("output_format", output_format);
+            genFd.append("accept_suggestions", "true");
+            genFd.append("suggestions_json", JSON.stringify(suggestions));
+
+            const hide = showPreviewLoading("Генерация отчёта с AI…");
+            try {
+              const resp = await aiApi.generateWithAi(genFd);
+              const isExternal = EXTERNAL_FORMATS.has(output_format);
+              if (email && isExternal) {
+                await pollTaskUntilSuccess(resp.task_id);
+                const label = EXTERNAL_FORMAT_LABELS[output_format] || "внешнем сервисе";
+                toast(`Ссылка на отчёт в ${label} отправлена на ${email}`, "success");
+              } else if (email) {
+                toast(`Отчёт отправлен на ${email}`, "success");
+              } else {
+                const result = await pollTaskAndDownload(resp.task_id, output_format);
+                toast(downloadSuccessMessage(output_format, result.download), "success");
+              }
+            } finally {
+              hide();
+            }
+          },
+          onManual: async () => {
+            try {
+              await runPreviewFlow(pendingUploadFd, form, hasFile, file, sheets);
+            } catch (err) {
+              onError(err);
+            }
+          },
+        });
+        return;
+      }
+
+      await runPreviewFlow(uploadFd, form, hasFile, file, sheets, hideLoading);
+      hideLoading = () => {};
+    } catch (err) {
+      hideLoading();
+      onError(err);
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}
+
+async function runPreviewFlow(uploadFd, form, hasFile, file, sheets, hideLoading) {
+  if (!hideLoading) {
+    hideLoading = showPreviewLoading(
+      hasFile && file.size > 10 * 1024 * 1024 ? "Большой файл — генерация в фоне…" : "Генерация превью…",
+    );
+  }
+
+  try {
       let result = await previewApi.create(uploadFd);
 
       if (result.status === "processing" && result.job_id) {
@@ -279,11 +352,8 @@ function bindPreviewForm(root) {
           }
         },
       });
-    } catch (err) {
-      hideLoading();
-      onError(err);
-    } finally {
-      submitBtn.disabled = false;
-    }
-  });
+  } catch (err) {
+    hideLoading();
+    throw err;
+  }
 }
