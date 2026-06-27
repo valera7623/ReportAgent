@@ -34,6 +34,9 @@ EXEMPT_PATHS = frozenset(
         "/webhooks/stripe",
         "/api/payments/prices",
         "/api/payments/config",
+        # Static SPA/docs mount roots (without trailing slash)
+        "/app",
+        "/help",
     }
 )
 
