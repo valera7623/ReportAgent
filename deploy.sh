@@ -115,7 +115,14 @@ fi
 if [[ -f scripts/build-docs.sh ]]; then
   echo "==> Building documentation site (/help/)"
   chmod +x scripts/build-docs.sh 2>/dev/null || true
-  ./scripts/build-docs.sh
+  if ! ./scripts/build-docs.sh; then
+    if [[ -f site/index.html ]]; then
+      echo "WARNING: docs build failed, using existing site/ from git"
+    else
+      echo "ERROR: docs build failed and site/ is missing — /help/ will be unavailable"
+      exit 1
+    fi
+  fi
 else
   echo "WARNING: scripts/build-docs.sh not found — /help/ may be unavailable"
 fi
