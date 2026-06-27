@@ -1,6 +1,7 @@
 import { OUTPUT_FORMATS } from "../config.js";
 import { renderDataTable } from "./DataTable.js";
 import { createChartCarousel } from "./ChartCarousel.js";
+import { toast } from "../ui.js";
 import { escapeHtml, formatDate } from "../utils.js";
 
 /**
@@ -18,21 +19,40 @@ export function openPreviewModal({
 
   const { data, expires_at: expiresAt } = previewData;
   const summary = data.summary || {};
+  const aiSourceLabel =
+    data.ai_source === "openai" ? "AI" : data.ai_source === "heuristic" ? "автоанализ" : null;
+  const aiDescription = data.ai_description || "";
+  const aiInsights = data.ai_insights || [];
   const summaryItems = Object.entries(summary)
     .filter(([, v]) => v != null && v !== "")
     .slice(0, 6)
     .map(([k, v]) => `<div class="preview-stat"><small>${escapeHtml(k)}</small><strong>${escapeHtml(String(v))}</strong></div>`)
     .join("");
 
+  const aiSectionHtml =
+    aiDescription || aiInsights.length
+      ? `<section class="preview-section">
+          <h4>AI-анализ${aiSourceLabel ? ` <span class="badge badge-muted">${escapeHtml(aiSourceLabel)}</span>` : ""}</h4>
+          ${aiDescription ? `<p class="seo-lead">${escapeHtml(aiDescription)}</p>` : ""}
+          ${
+            aiInsights.length
+              ? `<ul class="ai-insights-list">${aiInsights.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`
+              : ""
+          }
+        </section>`
+      : "";
+
   overlay.innerHTML = `
     <div class="modal modal-xl preview-modal" role="dialog">
       <div class="modal-header">
-        <h3>Превью отчёта</h3>
+        <h3>Превью отчёта${aiSourceLabel ? ` <span class="badge badge-muted">${escapeHtml(aiSourceLabel)}</span>` : ""}</h3>
         <button type="button" class="btn-icon modal-close" aria-label="Закрыть">&times;</button>
       </div>
       <div class="modal-body preview-modal-body">
         <p class="text-muted">ID: <span class="mono">${escapeHtml(previewId)}</span>
           ${expiresAt ? ` · до ${escapeHtml(formatDate(expiresAt))}` : ""}</p>
+
+        ${aiSectionHtml}
 
         <section class="preview-section">
           <h4>Статистика</h4>
@@ -105,6 +125,8 @@ export function openPreviewModal({
         output_format: formatEl.value,
       });
       close("confirmed");
+    } catch (err) {
+      toast(err.message || "Ошибка генерации отчёта", "error");
     } finally {
       buttons.forEach((b) => (b.disabled = false));
     }
@@ -117,9 +139,11 @@ export function openPreviewModal({
 }
 
 export function showPreviewLoading(message = "Генерация превью…") {
+  document.getElementById("preview-loading-overlay")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.id = "preview-loading-overlay";
+  overlay.style.zIndex = "9100";
   overlay.innerHTML = `
     <div class="modal" style="max-width:360px;text-align:center">
       <div class="modal-body"><div class="spinner" style="margin:1rem auto"></div><p>${escapeHtml(message)}</p></div>

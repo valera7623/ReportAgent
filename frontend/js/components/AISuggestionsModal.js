@@ -1,4 +1,4 @@
-import { OUTPUT_FORMATS } from "../config.js";
+import { toast } from "../ui.js";
 import { escapeHtml } from "../utils.js";
 
 /**
@@ -51,19 +51,10 @@ export function openAISuggestionsModal({ suggestions, onAccept, onManual, onClos
         </section>
 
         ${insightsHtml ? `<section class="preview-section"><h4>Инсайты</h4>${insightsHtml}</section>` : ""}
-
-        <section class="preview-section preview-confirm">
-          <label>Email (опционально)</label>
-          <input type="email" id="ai-email" class="input" placeholder="user@example.com" />
-          <label>Формат</label>
-          <select id="ai-format" class="input">
-            ${OUTPUT_FORMATS.map((f) => `<option value="${f.value}">${escapeHtml(f.label)}</option>`).join("")}
-          </select>
-        </section>
       </div>
       <div class="modal-footer preview-modal-footer">
         <button type="button" class="btn btn-outline" data-action="manual">Настроить вручную</button>
-        <button type="button" class="btn" data-action="accept">Согласиться и сгенерировать</button>
+        <button type="button" class="btn" data-action="accept">Посмотреть превью</button>
       </div>
     </div>`;
 
@@ -86,15 +77,12 @@ export function openAISuggestionsModal({ suggestions, onAccept, onManual, onClos
   };
 
   overlay.querySelector('[data-action="accept"]').onclick = async () => {
-    const email = overlay.querySelector("#ai-email")?.value?.trim() || null;
-    const output_format = overlay.querySelector("#ai-format")?.value || "pdf";
-    const buttons = overlay.querySelectorAll(".preview-modal-footer button");
-    buttons.forEach((b) => (b.disabled = true));
+    const payload = { suggestions };
+    close("accepted");
     try {
-      await onAccept({ email, output_format, suggestions });
-      close("accepted");
-    } finally {
-      buttons.forEach((b) => (b.disabled = false));
+      await onAccept(payload);
+    } catch (err) {
+      toast(err.message || "Ошибка создания превью", "error");
     }
   };
 

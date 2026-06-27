@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Any
@@ -77,6 +78,7 @@ def _log_preview_action(user_id: str, preview_id: str, action: str) -> None:
 async def create_preview(
     request: Request,
     sheets_url: Annotated[str | None, Form()] = None,
+    suggestions_json: Annotated[str | None, Form()] = None,
     file: UploadFile | None = File(default=None),
 ):
     """
@@ -93,6 +95,13 @@ async def create_preview(
         validate_request(email=None, sheets_url=sheets_url_clean, has_file=has_file)
     except AgentError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+
+    ai_suggestions: dict[str, Any] | None = None
+    if suggestions_json:
+        try:
+            ai_suggestions = json.loads(suggestions_json)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Invalid suggestions_json") from exc
 
     file_path: str | None = None
     if has_file and file is not None:
@@ -115,6 +124,7 @@ async def create_preview(
                 file_path=file_path,
                 sheets_url=None,
                 api_key=api_key,
+                ai_suggestions=ai_suggestions,
             )
             store_job_result(
                 job.id,
@@ -141,6 +151,7 @@ async def create_preview(
             sheets_url=sheets_url_clean,
             preferences=prefs,
             preview_id=preview_id,
+            ai_suggestions=ai_suggestions,
         )
     except AgentError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
@@ -250,6 +261,7 @@ async def confirm_preview(request: Request, body: PreviewConfirmRequest):
         api_key=api_key,
         output_format=resolved_format,
         preview_id=body.preview_id,
+        ai_suggestions=record.get("ai_suggestions"),
     )
 
     log_history(

@@ -94,6 +94,17 @@ app.add_middleware(RateLimitMiddleware)
 app.add_middleware(UsageLimitMiddleware)
 app.add_middleware(APIKeyAuthMiddleware)
 
+
+@app.middleware("http")
+async def frontend_no_cache_middleware(request: Request, call_next):
+    """Prevent stale SPA bundles after deploy (ES modules cache aggressively)."""
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/app" or path.startswith("/app/"):
+        if path.endswith(".js") or path.endswith(".html") or path.endswith("/"):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
 app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(api_keys.router)

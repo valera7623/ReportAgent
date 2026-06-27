@@ -622,6 +622,7 @@ def preview_generation_task(
     file_path: str | None = None,
     sheets_url: str | None = None,
     api_key: str | None = None,
+    ai_suggestions: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Async preview generation for large files."""
     from datetime import datetime, timezone
@@ -643,6 +644,7 @@ def preview_generation_task(
             sheets_url=sheets_url,
             preferences=prefs,
             preview_id=preview_id,
+            ai_suggestions=ai_suggestions,
         )
         cache_payload = result.pop("_cache_payload")
         store_preview(preview_id, cache_payload, user_id)

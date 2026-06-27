@@ -42,6 +42,7 @@ class PreviewGenerator:
         sheets_url: str | None = None,
         preferences: dict[str, Any] | None = None,
         preview_id: str | None = None,
+        ai_suggestions: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         preview_id = preview_id or str(uuid.uuid4())
         prefs = preferences or {}
@@ -51,6 +52,8 @@ class PreviewGenerator:
             file_path=file_path,
             sheets_url=sheets_url,
         )
+        if ai_suggestions:
+            parsed["ai_suggestions"] = ai_suggestions
         analyzed = run_analyst(parsed, preferences=prefs)
         visualized = run_visualizer(analyzed, preferences=prefs)
 
@@ -58,6 +61,8 @@ class PreviewGenerator:
         summary = build_key_metrics(analyzed)
         columns = self._detect_column_types(df)
         charts_meta = self._build_charts_from_visualized(preview_id, visualized, prefs)
+        if ai_suggestions:
+            charts_meta = self._apply_ai_chart_titles(charts_meta, ai_suggestions)
         chart_specs = visualized.get("_preview_chart_specs") or self._chart_specs_from_meta(charts_meta)
 
         expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
@@ -71,6 +76,10 @@ class PreviewGenerator:
             "suggested_chart_types": self._suggest_chart_types(analyzed),
             "columns": columns,
         }
+        if ai_suggestions:
+            data["ai_description"] = analyzed.get("ai_description") or ai_suggestions.get("description") or ""
+            data["ai_insights"] = analyzed.get("ai_insights") or ai_suggestions.get("insights") or []
+            data["ai_source"] = ai_suggestions.get("source") or "heuristic"
 
         cache_payload = {
             "expires_at": expires_at,
@@ -78,6 +87,7 @@ class PreviewGenerator:
             "sheets_url": sheets_url,
             "preferences": prefs,
             "chart_specs": chart_specs,
+            "ai_suggestions": ai_suggestions,
             "analyzed": {
                 "numeric_columns": analyzed.get("numeric_columns", []),
                 "text_columns": analyzed.get("text_columns", []),
@@ -214,6 +224,28 @@ class PreviewGenerator:
 
     def _chart_specs_from_meta(self, charts_meta: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [{**c, "index": i} for i, c in enumerate(charts_meta)]
+
+    @staticmethod
+    def _apply_ai_chart_titles(
+        charts_meta: list[dict[str, Any]],
+        ai_suggestions: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        suggested = ai_suggestions.get("suggested_charts") or []
+        for idx, chart in enumerate(charts_meta):
+            if idx >= len(suggested):
+                break
+            item = suggested[idx]
+            if not isinstance(item, dict):
+                continue
+            if item.get("title"):
+                chart["title"] = item["title"]
+            if item.get("type"):
+                chart["type"] = item["type"]
+            x_col = item.get("x")
+            y_col = item.get("y")
+            if x_col:
+                chart["column"] = f"{x_col} × {y_col}" if y_col else str(x_col)
+        return charts_meta
 
     def regenerate_chart(
         self,

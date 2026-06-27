@@ -148,7 +148,7 @@ async def generate_report_with_ai(
     resolved_format = resolve_output_format(output_format, prefs)
     validate_format_credentials(resolved_format)
 
-    email_clean = resolve_email_for_user(user_id, email, prefs)
+    email_clean = resolve_email_for_user(user_id, email)
 
     usage_count = 0
     if user_id:
@@ -167,13 +167,16 @@ async def generate_report_with_ai(
     result = generate_report.apply_async(kwargs=task_kwargs, task_id=str(uuid.uuid4()))
     task_id = result.id
 
-    log_history(
-        user_id,
-        f"POST /api/reports/generate-with-ai format={resolved_format} ai={accept_suggestions}",
-        task_id,
-        request_type="ai",
-        output_format=resolved_format,
-    )
+    try:
+        log_history(
+            user_id,
+            f"POST /api/reports/generate-with-ai format={resolved_format} ai={accept_suggestions}",
+            task_id,
+            request_type="ai",
+            output_format=resolved_format,
+        )
+    except Exception as exc:
+        logger.warning("Could not log ai generate history: %s", exc)
 
     download_url = (
         f"/tasks/{task_id}/pdf"

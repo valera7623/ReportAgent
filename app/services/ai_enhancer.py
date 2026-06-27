@@ -217,7 +217,10 @@ class AIEnhancer:
         raise last_error or RuntimeError("AI analysis failed")
 
     def _prepare_data_preview(self, df: pd.DataFrame) -> str:
-        describe = df.describe(include="all", datetime_is_numeric=True).transpose()
+        try:
+            describe = df.describe(include="all", datetime_is_numeric=True).transpose()
+        except TypeError:
+            describe = df.describe(include="all").transpose()
         return f"""
 Количество строк: {len(df)}
 Количество колонок: {len(df.columns)}
