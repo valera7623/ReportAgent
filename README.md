@@ -2,6 +2,8 @@
 
 Micro-SaaS for generating reports (PDF, Excel, PowerPoint, Notion, Google Slides) with charts from CSV/Excel uploads or public Google Sheets.
 
+**Документация (MkDocs):** после деплоя — `/help/` (RU/EN). Локально: `./scripts/build-docs.sh && mkdocs serve`. Исходники: [`docs/`](docs/README.md).
+
 **v1.5** — multi-format output (Excel, PPTX, Notion, Google Slides), format preferences, voice format detection.
 
 **v1.4** — Prometheus + Grafana observability, Telegram alerts, agent metrics.

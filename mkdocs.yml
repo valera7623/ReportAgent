@@ -1,0 +1,122 @@
+site_name: ReportAgent Documentation
+site_description: Генерация отчётов из данных — руководства для пользователей, администраторов и разработчиков
+site_url: https://reportagent.fileguardian.info/help/
+repo_url: https://github.com/valera7623/ReportAgent
+repo_name: valera7623/ReportAgent
+
+theme:
+  name: material
+  language: ru
+  palette:
+    - scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Тёмная тема
+    - scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Светлая тема
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+    - toc.follow
+
+plugins:
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: ru
+          default: true
+          name: Русский
+          build: true
+          site_name: ReportAgent — документация
+          site_description: Генерация отчётов из CSV/Excel и Google Sheets — руководства для пользователей, администраторов и разработчиков
+          theme:
+            language: ru
+        - locale: en
+          name: English
+          build: true
+          site_name: ReportAgent Documentation
+          site_description: Report generation from CSV/Excel and Google Sheets — guides for users, administrators, and developers
+          theme:
+            language: en
+          nav_translations:
+            Главная: Home
+            Руководство пользователя: User Guide
+            Руководство администратора: Admin Guide
+            Руководство разработчика: Developer Guide
+            API: API
+            Деплой: Deployment
+            Дополнительно: More
+  - search
+  - mermaid2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Главная: index.md
+  - Руководство пользователя:
+      - user-guide/getting-started.md
+      - user-guide/reports.md
+      - user-guide/preview.md
+      - user-guide/output-formats.md
+      - user-guide/voice.md
+      - user-guide/subscription.md
+      - user-guide/preferences.md
+  - Руководство администратора:
+      - admin-guide/deployment.md
+      - admin-guide/configuration.md
+      - admin-guide/monitoring.md
+      - admin-guide/backup.md
+  - Руководство разработчика:
+      - developer-guide/architecture.md
+      - developer-guide/database-schema.md
+      - developer-guide/agents.md
+      - developer-guide/self-healing.md
+  - API:
+      - api/index.md
+      - api/auth.md
+      - api/reports.md
+      - api/preview.md
+      - api/voice.md
+      - api/webhooks.md
+      - api/payments.md
+      - api/admin.md
+  - Деплой:
+      - deployment/docker.md
+      - deployment/vps.md
+      - deployment/ci-cd.md
+      - deployment/environment-variables.md
+  - Дополнительно:
+      - misc/changelog.md
+      - misc/roadmap.md
+      - misc/faq.md
+      - misc/glossary.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/valera7623/ReportAgent
+
+extra_javascript:
+  - javascripts/lang-redirect.js

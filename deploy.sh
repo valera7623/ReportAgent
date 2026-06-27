@@ -112,6 +112,14 @@ if [[ -n "$PROM_VOL_DIR" && -d "$PROM_VOL_DIR" ]]; then
   sudo chmod 777 "$PROM_VOL_DIR" 2>/dev/null || chmod 777 "$PROM_VOL_DIR" 2>/dev/null || true
 fi
 
+if [[ -f scripts/build-docs.sh ]]; then
+  echo "==> Building documentation site (/help/)"
+  chmod +x scripts/build-docs.sh 2>/dev/null || true
+  ./scripts/build-docs.sh
+else
+  echo "WARNING: scripts/build-docs.sh not found — /help/ may be unavailable"
+fi
+
 echo "==> Building app image"
 docker compose "${COMPOSE_ARGS[@]}" build
 
@@ -162,6 +170,7 @@ echo ""
 if [[ "$TRAEFIK_ENABLED" == "true" ]]; then
   echo "Deploy complete."
   echo "  API docs:    https://${DOMAIN}/docs"
+  echo "  Help docs:   https://${DOMAIN}/help/"
   echo "  Metrics:     https://${DOMAIN}/metrics"
   echo "  Grafana:     https://${GRAFANA_DOMAIN}/d/ReportAgent-Main/reportagent-main"
   echo "  Grafana login: ${GRAFANA_ADMIN_USER} / (see GRAFANA_ADMIN_PASSWORD in .env or log above)"
@@ -169,5 +178,6 @@ elif [[ "$TRAEFIK_ENABLED" != "true" ]]; then
   echo "Deploy complete (standalone, no SMDG Docker network)."
   echo "  API:     http://127.0.0.1:8000/health"
   echo "  Public:  configure smdg-nginx → http://172.17.0.1:8000 (docs/smdg-edge-proxy.example.conf)"
+  echo "  Help:    https://${DOMAIN}/help/"
   echo "  Grafana: http://127.0.0.1:3000 (proxy ${GRAFANA_DOMAIN} → :3000)"
 fi

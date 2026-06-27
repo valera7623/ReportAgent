@@ -42,6 +42,7 @@ services:
       - ./logs:/app/logs
       - ./app/data:/app/app/data
       - ./frontend:/app/frontend:ro
+      - ./site:/app/site:ro
       - ./secrets:/app/secrets:ro
     networks:
       - internal

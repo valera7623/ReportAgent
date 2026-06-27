@@ -40,6 +40,7 @@ EXEMPT_PATHS = frozenset(
 EXEMPT_PREFIXES = (
     "/docs/",
     "/redoc/",
+    "/help/",
     "/admin/",
     "/app/",
     "/auth/",

@@ -485,6 +485,29 @@ async def agent_error_handler(_request, exc: AgentError) -> JSONResponse:
     )
 
 
+def _resolve_docs_site_dir() -> Path | None:
+    for candidate in (
+        Path(__file__).resolve().parent.parent / "site",
+        Path("/app/site"),
+    ):
+        if candidate.is_dir() and (candidate / "index.html").is_file():
+            return candidate
+    return None
+
+
+_docs_site_dir = _resolve_docs_site_dir()
+if _docs_site_dir is not None:
+    app.mount(
+        "/help",
+        StaticFiles(directory=str(_docs_site_dir), html=True),
+        name="help",
+    )
+    logger.info("Documentation site mounted at /help/ from %s", _docs_site_dir)
+else:
+    logger.warning(
+        "Documentation site not found (run ./scripts/build-docs.sh to enable /help/)"
+    )
+
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if _FRONTEND_DIR.is_dir() and (_FRONTEND_DIR / "index.html").is_file():
     app.mount(
