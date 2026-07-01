@@ -183,9 +183,22 @@ def _validate_format_credentials(output_format: str) -> None:
 
 
 @app.get("/")
-async def root() -> dict[str, str]:
+async def root(request: Request) -> Response | dict[str, str]:
+    """SPA entry: HTML clients go to /app/ (preserve #/hash routes). API clients get JSON."""
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept and "application/json" not in accept.split(",")[0]:
+        html = """<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>ReportAgent</title>
+<script>
+  const hash = window.location.hash || "#/dashboard";
+  window.location.replace("/app/" + hash);
+</script>
+<noscript><meta http-equiv="refresh" content="0;url=/app/"></noscript>
+</head><body><p><a href="/app/">ReportAgent</a></p></body></html>"""
+        return Response(content=html, media_type="text/html; charset=utf-8")
     return {
         "service": "ReportAgent",
+        "app": "/app/",
         "docs": "/docs",
         "health": "/health",
         "sample_csv": "/samples/sample_sales.csv",
