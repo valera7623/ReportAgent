@@ -182,7 +182,7 @@ def _validate_format_credentials(output_format: str) -> None:
             )
 
 
-@app.get("/")
+@app.get("/", response_model=None)
 async def root(request: Request) -> Response | dict[str, str]:
     """SPA entry: HTML clients go to /app/ (preserve #/hash routes). API clients get JSON."""
     accept = request.headers.get("accept", "")
