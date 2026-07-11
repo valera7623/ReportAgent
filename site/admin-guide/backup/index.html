@@ -1996,7 +1996,7 @@ tar<span class="w"> </span>xzf<span class="w"> </span>backup/chroma_data.tar.gz
 <h2 id="cron">Рекомендуемый cron<a class="headerlink" href="#cron" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>0 3 * * * /home/smdg/ReportAgent/scripts/backup.sh
 </code></pre></div>
-<p>Создайте <code>scripts/backup.sh</code> по образцу ручного бэкапа выше.</p>
+<p>Создайте <code>scripts/backup.sh</code> по образцу ручного бэкапа выше (скрипт включён в репозиторий).</p>
 <h2 id="redis">Redis<a class="headerlink" href="#redis" title="Permanent link">&para;</a></h2>
 <p>Данные Celery (результаты задач) — ephemeral. Redis persistence через Docker volume <code>redis-data</code>; для disaster recovery достаточно перезапуска очереди.</p>
 <h2 id="grafana-prometheus">Grafana / Prometheus<a class="headerlink" href="#grafana-prometheus" title="Permanent link">&para;</a></h2>
