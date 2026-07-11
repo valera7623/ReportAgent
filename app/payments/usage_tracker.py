@@ -165,11 +165,16 @@ def get_subscription_api_response(user_id: str) -> dict[str, object]:
             "is_active": True,
             "payment_provider": "disabled",
             "stripe_subscription_id": None,
+            "yookassa_payment_id": None,
+            "billing_note": None,
         }
     sub = get_user_subscription(user_id)
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT stripe_subscription_id, payment_provider, period_end FROM subscriptions WHERE user_id = ?",
+            """
+            SELECT stripe_subscription_id, payment_provider, period_end, yookassa_payment_id
+            FROM subscriptions WHERE user_id = ?
+            """,
             (user_id,),
         ).fetchone()
     period_end = None
@@ -179,6 +184,9 @@ def get_subscription_api_response(user_id: str) -> dict[str, object]:
         period_end = str(sub["period_end"])
     if sub.get("expires_at"):
         period_end = str(sub["expires_at"])
+    provider = (row["payment_provider"] if row else None) or "freemium"
+    if row and row["yookassa_payment_id"] and provider == "freemium":
+        provider = "yookassa"
     return {
         "plan_type": _api_plan_label(str(sub["plan_type"])),
         "status": str(sub["status"]),
@@ -187,8 +195,14 @@ def get_subscription_api_response(user_id: str) -> dict[str, object]:
         "reports_remaining": int(sub["remaining_reports"]),
         "current_period_end": period_end,
         "is_active": bool(sub["is_active"]),
-        "payment_provider": (row["payment_provider"] if row else None) or "freemium",
+        "payment_provider": provider,
         "stripe_subscription_id": row["stripe_subscription_id"] if row else None,
+        "yookassa_payment_id": row["yookassa_payment_id"] if row else None,
+        "billing_note": (
+            "YooKassa: разовая оплата на период (не автопродление). Продлите вручную до истечения срока."
+            if provider == "yookassa"
+            else None
+        ),
     }
 
 
@@ -531,6 +545,50 @@ def consume_report_slot(*, user_id: str, desired_output_format: str | None = Non
         )
 
 
+def refund_report_slot(*, user_id: str | None) -> bool:
+    """Refund one previously consumed report slot for the current UTC month.
+
+    Call this when a Celery report task fails after the API already consumed a slot.
+    Returns True if a slot was refunded.
+    """
+    if not user_id or not billing_enabled():
+        return False
+
+    now = datetime.now(timezone.utc)
+    period_start, _period_end = _month_bounds(now)
+
+    with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            """
+            SELECT used_reports, period_start
+            FROM subscriptions
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        if not row:
+            return False
+
+        used = int(row["used_reports"] or 0)
+        row_period = row["period_start"]
+        # Only refund within the same billing month that was charged.
+        if used <= 0:
+            return False
+        if row_period and str(row_period)[:7] != period_start[:7]:
+            return False
+
+        conn.execute(
+            """
+            UPDATE subscriptions
+            SET used_reports = used_reports - 1
+            WHERE user_id = ? AND used_reports > 0
+            """,
+            (user_id,),
+        )
+        return True
+
+
 def activate_subscription(
     *,
     user_id: str,
@@ -550,8 +608,8 @@ def activate_subscription(
         conn.execute(
             """
             INSERT INTO subscriptions
-                (id, user_id, plan_type, status, monthly_reports_limit, used_reports, period_start, period_end, expires_at, yookassa_payment_id, yookassa_payment_method)
-            VALUES (?, ?, ?, 'active', ?, 0, ?, ?, ?, ?, ?)
+                (id, user_id, plan_type, status, monthly_reports_limit, used_reports, period_start, period_end, expires_at, yookassa_payment_id, yookassa_payment_method, payment_provider)
+            VALUES (?, ?, ?, 'active', ?, 0, ?, ?, ?, ?, ?, 'yookassa')
             ON CONFLICT(user_id) DO UPDATE SET
                 plan_type = excluded.plan_type,
                 status = 'active',
@@ -561,7 +619,8 @@ def activate_subscription(
                 period_end = excluded.period_end,
                 expires_at = excluded.expires_at,
                 yookassa_payment_id = excluded.yookassa_payment_id,
-                yookassa_payment_method = excluded.yookassa_payment_method
+                yookassa_payment_method = excluded.yookassa_payment_method,
+                payment_provider = 'yookassa'
             """,
             (
                 str(uuid.uuid4()),
@@ -601,4 +660,15 @@ def cancel_subscription(*, user_id: str) -> None:
             """,
             (expires_at, FREEMIUM_REPORTS_LIMIT, period_start, period_end, user_id),
         )
+
+
+def downgrade_after_refund(*, user_id: str, payment_id: str | None = None) -> None:
+    """After a full refund, revert the user to freemium (admin refund path)."""
+    cancel_subscription(user_id=user_id)
+    if payment_id:
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE payments SET status = 'refunded' WHERE payment_id = ?",
+                (payment_id,),
+            )
 

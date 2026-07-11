@@ -12,7 +12,11 @@ Micro-SaaS для автоматической генерации аналити
 
 ### Какие форматы отчётов?
 
-PDF, Excel, PowerPoint, Notion, Google Slides.
+PDF, Excel, PowerPoint — **готово**. Notion и Google Slides — **beta** (базовый экспорт; встраивание графиков ограничено).
+
+### Что готово / beta / roadmap?
+
+См. таблицу в [README](../README.md) и [roadmap](roadmap.md).
 
 ## Регистрация и ключи
 

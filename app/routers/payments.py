@@ -172,42 +172,63 @@ async def get_subscription(request: Request) -> SubscriptionResponse:
 
 
 @router.post("/cancel-subscription", response_model=CancelSubscriptionResponse)
-async def cancel_subscription(request: Request) -> CancelSubscriptionResponse:
-    """Cancel Stripe subscription for current user."""
+async def cancel_subscription_endpoint(request: Request) -> CancelSubscriptionResponse:
+    """Cancel Stripe subscription or end YooKassa paid period early."""
+    from app.payments.usage_tracker import cancel_subscription as local_cancel
+
     user_id = _require_user_id(request)
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT stripe_subscription_id, period_end, expires_at FROM subscriptions WHERE user_id = ?",
+            """
+            SELECT stripe_subscription_id, period_end, expires_at, payment_provider, yookassa_payment_id
+            FROM subscriptions WHERE user_id = ?
+            """,
             (user_id,),
         ).fetchone()
-    if not row or not row["stripe_subscription_id"]:
-        raise HTTPException(status_code=404, detail="No active Stripe subscription")
+    if not row:
+        raise HTTPException(status_code=404, detail="No subscription found")
 
-    sub_id = str(row["stripe_subscription_id"])
-    try:
-        stripe_client.cancel_subscription(sub_id, at_period_end=True)
-        sub_data = stripe_client.get_subscription(sub_id)
-    except StripeClientError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    provider = (row["payment_provider"] or "").lower()
+    if row["stripe_subscription_id"]:
+        sub_id = str(row["stripe_subscription_id"])
+        try:
+            stripe_client.cancel_subscription(sub_id, at_period_end=True)
+            sub_data = stripe_client.get_subscription(sub_id)
+        except StripeClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    period_end = sub_data.get("current_period_end")
-    effective = None
-    if period_end:
-        effective = datetime.fromtimestamp(int(period_end), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    else:
-        effective = str(row["period_end"] or row["expires_at"] or "")
+        period_end = sub_data.get("current_period_end")
+        effective = None
+        if period_end:
+            effective = datetime.fromtimestamp(int(period_end), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            effective = str(row["period_end"] or row["expires_at"] or "")
 
-    with get_connection() as conn:
-        conn.execute(
-            """
-            UPDATE subscriptions
-            SET status = 'canceled', expires_at = ?, updated_at = datetime('now')
-            WHERE user_id = ?
-            """,
-            (effective, user_id),
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE subscriptions
+                SET status = 'canceled', expires_at = ?, updated_at = datetime('now')
+                WHERE user_id = ?
+                """,
+                (effective, user_id),
+            )
+        return CancelSubscriptionResponse(
+            status="canceled",
+            effective_date=effective,
+            payment_provider="stripe",
         )
 
-    return CancelSubscriptionResponse(status="canceled", effective_date=effective)
+    if provider == "yookassa" or row["yookassa_payment_id"]:
+        effective = str(row["expires_at"] or row["period_end"] or "")
+        local_cancel(user_id=user_id)
+        return CancelSubscriptionResponse(
+            status="canceled",
+            effective_date=effective or None,
+            payment_provider="yookassa",
+        )
+
+    raise HTTPException(status_code=404, detail="No active paid subscription to cancel")
 
 
 # --- Admin ---
@@ -298,9 +319,11 @@ async def admin_revenue(
 
 @admin_router.post("/refund/{payment_id}", response_model=AdminRefundResponse, dependencies=[Depends(admin_required)])
 async def admin_refund(payment_id: str) -> AdminRefundResponse:
+    from app.payments.usage_tracker import downgrade_after_refund
+
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT payment_id, stripe_payment_intent_id, amount, status, provider FROM payments WHERE payment_id = ?",
+            "SELECT payment_id, user_id, stripe_payment_intent_id, amount, status, provider FROM payments WHERE payment_id = ?",
             (payment_id,),
         ).fetchone()
     if not row:
@@ -319,10 +342,6 @@ async def admin_refund(payment_id: str) -> AdminRefundResponse:
     except StripeClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    with get_connection() as conn:
-        conn.execute(
-            "UPDATE payments SET status = 'refunded' WHERE payment_id = ?",
-            (payment_id,),
-        )
+    downgrade_after_refund(user_id=str(row["user_id"]), payment_id=payment_id)
 
     return AdminRefundResponse(payment_id=payment_id, refund=refund)

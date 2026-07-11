@@ -9,6 +9,7 @@ import { renderVerify } from "./pages/verify.js";
 import { renderResetPassword } from "./pages/reset_password.js";
 import { renderDashboard } from "./pages/dashboard.js";
 import { renderReports } from "./pages/reports.js";
+import { renderVoice } from "./pages/voice.js";
 import { renderKeys } from "./pages/keys.js";
 import { renderWebhooks } from "./pages/webhooks.js";
 import { renderPricing } from "./pages/pricing.js";
@@ -51,6 +52,7 @@ async function boot() {
   registerRoute("/reset-password/confirm", (params) => renderResetPassword(app, params));
   registerRoute("/dashboard", () => renderDashboard(app));
   registerRoute("/reports", () => renderReports(app));
+  registerRoute("/voice", () => renderVoice(app));
   registerRoute("/keys", () => renderKeys(app));
   registerRoute("/webhooks", () => renderWebhooks(app));
   registerRoute("/pricing", () => renderPricing(app));

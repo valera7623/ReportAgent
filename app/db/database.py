@@ -67,6 +67,9 @@ def default_preferences() -> dict[str, Any]:
 def resolve_db_path() -> Path:
     """Resolve SQLite file path from DATABASE_URL."""
     url = os.getenv("DATABASE_URL", DEFAULT_SQLITE_URL)
+    if url.startswith("postgresql://") or url.startswith("postgres://"):
+        _logger.info("PostgreSQL DATABASE_URL detected — using SQLite fallback unless PG adapter is wired")
+        url = DEFAULT_SQLITE_URL
     if not url.startswith("sqlite:///"):
         _logger.warning(
             "DATABASE_URL is not SQLite (%s); falling back to %s",

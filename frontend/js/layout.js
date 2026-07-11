@@ -5,6 +5,7 @@ import { escapeHtml } from "./utils.js";
 const userNavAll = [
   { path: "/dashboard", label: "Дашборд", icon: "📊" },
   { path: "/reports", label: "Отчёты", icon: "📄" },
+  { path: "/voice", label: "Голос", icon: "🎤" },
   { path: "/keys", label: "API-ключи", icon: "🔑" },
   { path: "/webhooks", label: "Вебхуки", icon: "🔗" },
   { path: "/pricing", label: "Тарифы", icon: "💳", billing: true },

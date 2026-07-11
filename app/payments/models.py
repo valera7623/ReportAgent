@@ -46,11 +46,14 @@ class SubscriptionResponse(BaseModel):
     is_active: bool
     payment_provider: str | None = None
     stripe_subscription_id: str | None = None
+    yookassa_payment_id: str | None = None
+    billing_note: str | None = None
 
 
 class CancelSubscriptionResponse(BaseModel):
     status: str
     effective_date: str | None = None
+    payment_provider: str | None = None
 
 
 class AdminSubscriptionsResponse(BaseModel):

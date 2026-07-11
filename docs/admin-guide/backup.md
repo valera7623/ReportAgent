@@ -44,7 +44,7 @@ tar xzf backup/chroma_data.tar.gz
 0 3 * * * /home/smdg/ReportAgent/scripts/backup.sh
 ```
 
-Создайте `scripts/backup.sh` по образцу ручного бэкапа выше.
+Создайте `scripts/backup.sh` по образцу ручного бэкапа выше (скрипт включён в репозиторий).
 
 ## Redis
 

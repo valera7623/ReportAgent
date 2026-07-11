@@ -4,11 +4,26 @@ Micro-SaaS for generating reports (PDF, Excel, PowerPoint, Notion, Google Slides
 
 **Документация (MkDocs):** после деплоя — `/help/` (RU/EN). Локально: `./scripts/build-docs.sh && mkdocs serve`. Исходники: [`docs/`](docs/README.md).
 
+**v1.8.0** — email/password auth, JWT, MkDocs `/help/` RU+EN, admin API + audit log, preview-before-send.
+
 **v1.5** — multi-format output (Excel, PPTX, Notion, Google Slides), format preferences, voice format detection.
 
 **v1.4** — Prometheus + Grafana observability, Telegram alerts, agent metrics.
 
 **v1.3** — voice input (Whisper + GPT intent), API keys, per-user preferences, SQLite memory.
+
+## Статус функций (для покупателя / демо)
+
+| Область | Статус |
+|---------|--------|
+| PDF / Excel / PPTX | Готово |
+| Notion / Google Slides | Beta (текст + ссылки; графики ограничены) |
+| Голос (API + SPA `/app#/voice`) | Готово (нужен `OPENAI_API_KEY`) |
+| Stripe billing | Готово |
+| ЮKassa billing | Готово (разовая оплата на период) |
+| Scheduled reports API | Готово (`/api/scheduled-reports`) |
+| OAuth Google/Microsoft | Scaffold (`/auth/oauth/*`, нужны client ID) |
+| PostgreSQL | Опционально (`psycopg2`, см. `app/db/postgres.py`) |
 
 ## Architecture
 

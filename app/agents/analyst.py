@@ -52,6 +52,21 @@ def run_analyst(parsed: dict[str, Any], preferences: dict[str, Any] | None = Non
 
         ai_aggregations: dict[str, list[str]] = ai_suggestions.get("aggregations") or {}
 
+        extra = prefs.get("extra") or {}
+        voice_metrics = extra.get("voice_metrics") or []
+        voice_group_by = extra.get("voice_group_by")
+        if voice_metrics:
+            requested_numeric = [m for m in voice_metrics if m in df.columns]
+            if requested_numeric:
+                numeric_cols = requested_numeric
+            else:
+                for m in voice_metrics:
+                    matches = [c for c in df.columns if str(c).lower() == str(m).lower()]
+                    if matches:
+                        numeric_cols = list(dict.fromkeys(numeric_cols + matches))
+        if voice_group_by and voice_group_by in df.columns and voice_group_by not in text_cols:
+            text_cols = [voice_group_by] + [c for c in text_cols if c != voice_group_by]
+
         fix_ctx = get_active_fix_context()
         column_remap = fix_ctx.get("_column_remap") or {}
         if column_remap:

@@ -17,11 +17,13 @@ from app.config.output_formats import EXTERNAL_FORMATS, resolve_output_format
 from app.db.database import log_history, resolve_email_for_user
 from app.db.init_db import run_migrations
 from app.middleware.auth import APIKeyAuthMiddleware
+from app.middleware.metrics_auth import MetricsAuthMiddleware
 from app.middleware.usage_limit import UsageLimitMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.payments.usage_tracker import consume_report_slot
 from app.self_healing.init_kb import init_knowledge_base
+from app.startup_guards import validate_production_config
 from app.utils.metrics import get_metrics_payload, start_background_gauge_updaters
 from app.utils.metrics_middleware import MetricsMiddleware
 from app.models.schemas import (
@@ -38,9 +40,11 @@ from app.routers import (
     api_keys,
     auth,
     dashboard,
+    oauth,
     preferences,
     preview,
     reports_api,
+    scheduled_reports,
     voice,
     webhooks,
 )
@@ -62,6 +66,11 @@ logger = get_logger("main", "log_api.log")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    try:
+        validate_production_config()
+    except RuntimeError:
+        logger.exception("Refusing to start with unsafe production configuration")
+        raise
     try:
         run_migrations()
     except Exception as exc:
@@ -89,6 +98,7 @@ app = FastAPI(
 )
 
 app.add_middleware(MetricsMiddleware)
+app.add_middleware(MetricsAuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(UsageLimitMiddleware)
@@ -107,6 +117,7 @@ async def frontend_no_cache_middleware(request: Request, call_next):
 
 app.include_router(admin.router)
 app.include_router(auth.router)
+app.include_router(oauth.router)
 app.include_router(api_keys.router)
 app.include_router(preferences.router)
 app.include_router(voice.router)
@@ -124,6 +135,7 @@ app.include_router(dashboard.router)
 app.include_router(reports_api.router)
 app.include_router(preview.router)
 app.include_router(ai_enhancer.router)
+app.include_router(scheduled_reports.router)
 
 
 def _download_url_for_format(task_id: str, output_format: str) -> str:

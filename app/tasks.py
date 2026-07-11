@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import redis
@@ -19,7 +20,7 @@ from app.db.database import get_user_by_api_key, update_history_task_result
 from app.models.schemas import AgentError
 from app.voice.orchestrator import process_voice
 from app.voice.storage import delete_voice_file
-from app.payments.usage_tracker import check_report_limit
+from app.payments.usage_tracker import check_report_limit, refund_report_slot
 from app.utils.logger import get_logger
 from app.utils.metrics import report_generation_duration_seconds
 from app.webhook.dispatcher import build_webhook_payload, fire_report_webhooks
@@ -309,29 +310,35 @@ def generate_report(
     output_format: str | None = None,
     preview_id: str | None = None,
     ai_suggestions: dict[str, Any] | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Run context_loader → parser → analyst → visualizer → formatter pipeline."""
     task_id = self.request.id or "unknown"
     logger.info("Task %s started (email=%s, format=%s)", task_id, email or "none", output_format or "default")
 
-    user_id = _resolve_user_id(api_key)
-    if user_id and not check_report_limit(user_id, slot_reserved=True):
-        logger.warning("Task %s rejected: report limit exceeded for user %s", task_id, user_id)
+    resolved_user_id = user_id or _resolve_user_id(api_key)
+    if resolved_user_id and not check_report_limit(resolved_user_id, slot_reserved=True):
+        logger.warning("Task %s rejected: report limit exceeded for user %s", task_id, resolved_user_id)
         raise RuntimeError("Report limit exceeded")
 
     source_type = _source_type_label(sheets_url=sheets_url, file_path=file_path)
-    prefs = get_user_preferences(api_key)
+    if resolved_user_id and not api_key:
+        from app.db.database import get_user_preferences as get_prefs_by_user
+
+        prefs = get_prefs_by_user(resolved_user_id)
+    else:
+        prefs = get_user_preferences(api_key)
     fmt = resolve_output_format(output_format, prefs)
     started = time.perf_counter()
 
-    if user_id:
+    if resolved_user_id:
         from app.payments.usage_tracker import get_remaining_reports
 
         logger.debug(
             "Task %s user %s remaining reports after API consumption: %s",
             task_id,
-            user_id,
-            get_remaining_reports(user_id),
+            resolved_user_id,
+            get_remaining_reports(resolved_user_id),
         )
 
     try:
@@ -344,13 +351,14 @@ def generate_report(
             output_format=output_format,
             preview_id=preview_id,
             ai_suggestions=ai_suggestions,
+            preferences=prefs,
         )
         logger.info("Task %s completed successfully (format=%s)", task_id, result.get("output_format"))
         duration = time.perf_counter() - started
-        _record_history_result(user_id, task_id, status="SUCCESS", duration_seconds=duration)
+        _record_history_result(resolved_user_id, task_id, status="SUCCESS", duration_seconds=duration)
         _fire_success_webhooks(
             task_id=task_id,
-            user_id=user_id,
+            user_id=resolved_user_id,
             result=result,
             source_type=source_type,
             duration_seconds=duration,
@@ -360,10 +368,12 @@ def generate_report(
     except AgentError as exc:
         logger.error("Task %s failed in agent '%s': %s", task_id, exc.agent, exc.message)
         duration = time.perf_counter() - started
-        _record_history_result(user_id, task_id, status="FAILURE", duration_seconds=duration)
+        if resolved_user_id and refund_report_slot(user_id=resolved_user_id):
+            logger.info("Task %s refunded report slot for user %s", task_id, resolved_user_id)
+        _record_history_result(resolved_user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
-            user_id=user_id,
+            user_id=resolved_user_id,
             error_message=f"[{exc.agent}] {exc.message}",
             source_type=source_type,
             duration_seconds=duration,
@@ -374,10 +384,12 @@ def generate_report(
     except Exception as exc:
         logger.exception("Task %s failed with unexpected error", task_id)
         duration = time.perf_counter() - started
-        _record_history_result(user_id, task_id, status="FAILURE", duration_seconds=duration)
+        if resolved_user_id and refund_report_slot(user_id=resolved_user_id):
+            logger.info("Task %s refunded report slot for user %s", task_id, resolved_user_id)
+        _record_history_result(resolved_user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
-            user_id=user_id,
+            user_id=resolved_user_id,
             error_message=str(exc),
             source_type=source_type,
             duration_seconds=duration,
@@ -408,6 +420,14 @@ def generate_voice_report(
     logger.info("Voice task %s started (user=%s)", task_id, user_id or "anon")
 
     resolved_user_id = user_id or _resolve_user_id(api_key)
+    if resolved_user_id and not check_report_limit(resolved_user_id, slot_reserved=True):
+        logger.warning(
+            "Voice task %s rejected: report limit exceeded for user %s",
+            task_id,
+            resolved_user_id,
+        )
+        raise RuntimeError("Report limit exceeded")
+
     source_type = "voice"
     started = time.perf_counter()
     output_fmt: str | None = None
@@ -465,6 +485,8 @@ def generate_voice_report(
 
     except VoiceClarificationError as exc:
         logger.warning("Voice task %s needs clarification: %s", task_id, exc)
+        if resolved_user_id and refund_report_slot(user_id=resolved_user_id):
+            logger.info("Voice task %s refunded report slot (clarification)", task_id)
         self.update_state(
             state="NEEDS_CLARIFICATION",
             meta={
@@ -478,6 +500,8 @@ def generate_voice_report(
     except AgentError as exc:
         logger.error("Voice task %s failed in agent '%s': %s", task_id, exc.agent, exc.message)
         duration = time.perf_counter() - started
+        if resolved_user_id and refund_report_slot(user_id=resolved_user_id):
+            logger.info("Voice task %s refunded report slot for user %s", task_id, resolved_user_id)
         _record_history_result(resolved_user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
@@ -492,6 +516,8 @@ def generate_voice_report(
     except Exception as exc:
         logger.exception("Voice task %s failed with unexpected error", task_id)
         duration = time.perf_counter() - started
+        if resolved_user_id and refund_report_slot(user_id=resolved_user_id):
+            logger.info("Voice task %s refunded report slot for user %s", task_id, resolved_user_id)
         _record_history_result(resolved_user_id, task_id, status="FAILURE", duration_seconds=duration)
         _fire_failure_webhooks(
             task_id=task_id,
@@ -682,6 +708,64 @@ def cleanup_previews() -> dict[str, int]:
     return {"removed": removed}
 
 
+@celery_app.task(name="tasks.run_due_scheduled_reports")
+def run_due_scheduled_reports() -> dict[str, int]:
+    """Dispatch report generation for schedules whose next_run_at has passed."""
+    from app.db.database import get_connection
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    dispatched = 0
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, user_id, sheets_url, email, output_format, cron_expression
+            FROM scheduled_reports
+            WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
+            """,
+            (now,),
+        ).fetchall()
+
+    for row in rows:
+        schedule_id = row["id"]
+        user_id = row["user_id"]
+        sheets_url = row["sheets_url"]
+        if not sheets_url:
+            continue
+        try:
+            from app.payments.usage_tracker import consume_report_slot
+
+            consume_report_slot(user_id=user_id, desired_output_format=row["output_format"])
+        except Exception as exc:
+            logger.warning("Scheduled report %s skipped (billing): %s", schedule_id, exc)
+            continue
+
+        generate_report.delay(
+            email=row["email"],
+            sheets_url=sheets_url,
+            output_format=row["output_format"],
+            user_id=user_id,
+        )
+        dispatched += 1
+        next_run = _scheduled_next_run(str(row["cron_expression"]))
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE scheduled_reports
+                SET last_run_at = ?, next_run_at = ?
+                WHERE id = ?
+                """,
+                (now, next_run, schedule_id),
+            )
+    logger.info("Dispatched %d scheduled report(s)", dispatched)
+    return {"dispatched": dispatched}
+
+
+def _scheduled_next_run(cron_expression: str) -> str:
+    from app.routers.scheduled_reports import _compute_next_run
+
+    return _compute_next_run(cron_expression)
+
+
 @celery_app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs) -> None:
     """Register Celery Beat schedule for queue length monitoring and self-healing learning."""
@@ -699,4 +783,9 @@ def setup_periodic_tasks(sender, **kwargs) -> None:
         600.0,
         cleanup_previews.s(),
         name="cleanup-previews-every-10m",
+    )
+    sender.add_periodic_task(
+        60.0,
+        run_due_scheduled_reports.s(),
+        name="run-due-scheduled-reports-every-60s",
     )

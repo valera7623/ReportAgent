@@ -30,6 +30,15 @@ jobs:
       - name: Python syntax check
         run: python -m compileall app
 
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run pytest smoke tests
+        run: pytest tests/ -q
+
+      - name: Ruff lint (app/)
+        run: pip install ruff && ruff check app --select E,F,W --ignore E501
+
       - name: Validate production compose
         run: docker compose -f docker-compose.prod.yml config
 

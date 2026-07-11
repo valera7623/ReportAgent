@@ -92,15 +92,23 @@ export async function renderPricing(root) {
         </div></div>`;
 
   const yookassaNote = `
-    <p class="text-muted" style="margin-top:1.5rem">
-      Альтернатива для РФ: <a href="#/pricing-yookassa">оплата через ЮKassa</a>
-    </p>`;
+    <div style="margin-top:1.5rem;display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
+      <a class="btn btn-outline" href="#/pricing-yookassa">Оплата через ЮKassa (РФ)</a>
+      <span class="text-muted">Карты РФ · разовая оплата на период</span>
+    </div>`;
 
   mountShell(
     root,
     "Тарифы",
     `
-    <div class="page-header"><h1>Тарифы</h1><p class="seo-lead">Выберите план ReportAgent: Freemium, Premium или Enterprise. Оплата через Stripe Checkout.</p></div>
+    <div class="page-header">
+      <h1>Тарифы</h1>
+      <p class="seo-lead">Freemium, Premium или Enterprise. Stripe Checkout (международные карты) или ЮKassa для РФ.</p>
+      <p style="margin-top:.75rem">
+        <span class="badge">Stripe</span>
+        <a href="#/pricing-yookassa" style="margin-left:.75rem">Перейти к ЮKassa →</a>
+      </p>
+    </div>
     <div class="grid-4">${freemiumCard}${paidCards}</div>
     ${yookassaNote}`,
     (el) => {

@@ -234,7 +234,9 @@ def _build_pdf(visualized: dict[str, Any], pdf_path: Path, logo_path: Path | Non
         story.append(Image(str(logo_path), width=4 * cm, height=2 * cm))
         story.append(Spacer(1, 0.3 * cm))
 
-    story.append(Paragraph("ReportAgent — Data Report", title_style))
+    prefs = visualized.get("preferences") or {}
+    report_title = (prefs.get("extra") or {}).get("report_title") or "ReportAgent — Data Report"
+    story.append(Paragraph(report_title, title_style))
     story.append(Paragraph(f"Generated: {now}", body_style))
     story.append(Paragraph(f"Task ID: {task_id}", body_style))
     story.append(Paragraph(f"Source: {visualized.get('source', 'N/A')}", body_style))

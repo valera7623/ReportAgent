@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from contextlib import contextmanager
@@ -22,8 +23,10 @@ from app.utils.logger import get_logger
 
 logger = get_logger("self_healing_executor", "log_self_healing.json")
 
-# Thread-local fix context passed to agent retry logic via context dict.
-_active_fix_context: dict[str, Any] = {}
+# Per-thread fix context — safe under concurrent Celery/prefork + ThreadPoolExecutor.
+_fix_context_local = threading.local()
+# Serialize pandas/matplotlib monkey-patches so concurrent retries do not clobber globals.
+_patch_lock = threading.RLock()
 
 
 def _log_fix_attempt(entry: dict[str, Any]) -> None:
@@ -51,32 +54,35 @@ def _parse_solution_code(solution_code: str) -> dict[str, Any] | None:
 
 @contextmanager
 def _pandas_read_csv_patch(read_kwargs: dict[str, Any]):
-    original = pd.read_csv
+    """Temporarily patch pd.read_csv under a lock (not a bare global assignment)."""
+    with _patch_lock:
+        original = pd.read_csv
 
-    def patched(*args, **kwargs):
-        merged = {**read_kwargs, **kwargs}
-        return original(*args, **merged)
+        def patched(*args, **kwargs):
+            merged = {**read_kwargs, **kwargs}
+            return original(*args, **merged)
 
-    pd.read_csv = patched  # type: ignore[assignment]
-    try:
-        yield
-    finally:
-        pd.read_csv = original  # type: ignore[assignment]
+        pd.read_csv = patched  # type: ignore[assignment]
+        try:
+            yield
+        finally:
+            pd.read_csv = original  # type: ignore[assignment]
 
 
 @contextmanager
 def _matplotlib_agg_backend():
     import matplotlib
 
-    prev = matplotlib.get_backend()
-    matplotlib.use("Agg", force=True)
-    try:
-        yield
-    finally:
+    with _patch_lock:
+        prev = matplotlib.get_backend()
+        matplotlib.use("Agg", force=True)
         try:
-            matplotlib.use(prev, force=True)
-        except Exception:
-            pass
+            yield
+        finally:
+            try:
+                matplotlib.use(prev, force=True)
+            except Exception:
+                pass
 
 
 def _apply_fuzzy_columns(context: dict[str, Any]) -> dict[str, Any]:
@@ -89,6 +95,14 @@ def _apply_fuzzy_columns(context: dict[str, Any]) -> dict[str, Any]:
         if matches:
             overlay["_column_remap"] = {missing: matches[0]}
     return overlay
+
+
+def _set_active_fix_context(ctx: dict[str, Any]) -> None:
+    _fix_context_local.value = ctx
+
+
+def _clear_active_fix_context() -> None:
+    _fix_context_local.value = {}
 
 
 class FixExecutor:
@@ -208,8 +222,7 @@ class FixExecutor:
             fix_id,
         )
 
-        global _active_fix_context
-        _active_fix_context = {**context, **params}
+        _set_active_fix_context({**context, **params})
 
         try:
             if action == "pandas_read_csv_alt":
@@ -219,7 +232,7 @@ class FixExecutor:
                 with _matplotlib_agg_backend():
                     result = retry_fn()
             elif action == "fuzzy_column_match":
-                _active_fix_context = _apply_fuzzy_columns({**context, **params})
+                _set_active_fix_context(_apply_fuzzy_columns({**context, **params}))
                 result = retry_fn()
             elif action == "retry_exponential_backoff":
                 import random
@@ -228,7 +241,7 @@ class FixExecutor:
                 time.sleep(delay + random.uniform(0, 0.5))
                 result = retry_fn()
             elif action == "context_overlay":
-                _active_fix_context = {**context, **params}
+                _set_active_fix_context({**context, **params})
                 result = retry_fn()
             else:
                 logger.warning("Unknown fix action: %s", action)
@@ -238,7 +251,7 @@ class FixExecutor:
                 return True, result
             return False, None
         finally:
-            _active_fix_context = {}
+            _clear_active_fix_context()
 
     def _try_prompt_fix(
         self,
@@ -306,7 +319,9 @@ class FixExecutor:
         if isinstance(result, dict):
             if expected_shape == "parser" and not result.get("data"):
                 return False
-            if expected_shape == "analyst" and not result.get("numeric_summary") and not result.get("text_summary"):
+            if expected_shape == "analyst" and not result.get("numeric_summary") and not (
+                result.get("text_summary") or result.get("categorical_summary")
+            ):
                 return False
             return True
         return True
@@ -314,4 +329,4 @@ class FixExecutor:
 
 def get_active_fix_context() -> dict[str, Any]:
     """Return current fix overlay context (read by agents during retry)."""
-    return dict(_active_fix_context)
+    return dict(getattr(_fix_context_local, "value", None) or {})

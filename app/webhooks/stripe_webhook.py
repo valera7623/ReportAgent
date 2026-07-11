@@ -19,6 +19,7 @@ from app.payments.usage_tracker import (
     plan_type_from_price_id,
 )
 from app.payments.payment_records import record_stripe_payment as _record_stripe_payment
+from app.db.database import get_connection
 from app.utils.logger import get_logger
 from app.utils.metrics import (
     record_stripe_payment,
@@ -187,6 +188,31 @@ def _handle_invoice_payment(invoice: dict[str, Any], *, succeeded: bool) -> None
             _send_telegram_payment_alert(text=f"⚠️ Stripe invoice payment failed for user {user_id[:8]}…")
 
 
+def _claim_stripe_event(event_id: str, event_type: str) -> bool:
+    """Return True if this event_id was newly claimed (not a replay)."""
+    if not event_id:
+        return True
+    with get_connection() as conn:
+        try:
+            conn.execute(
+                """
+                INSERT INTO stripe_webhook_events (event_id, event_type)
+                VALUES (?, ?)
+                """,
+                (event_id, event_type),
+            )
+            return True
+        except Exception:
+            # UNIQUE constraint — already processed
+            existing = conn.execute(
+                "SELECT 1 FROM stripe_webhook_events WHERE event_id = ?",
+                (event_id,),
+            ).fetchone()
+            if existing:
+                return False
+            raise
+
+
 @router.post("/stripe")
 async def stripe_webhook(request: Request) -> JSONResponse:
     """Stripe webhook endpoint (signature required)."""
@@ -201,8 +227,13 @@ async def stripe_webhook(request: Request) -> JSONResponse:
     except (stripe.SignatureVerificationError, ValueError):
         raise HTTPException(status_code=401) from None
 
+    event_id = str(event.get("id") or "")
     event_type = event["type"]
     data_object = event["data"]["object"]
+
+    if not _claim_stripe_event(event_id, event_type):
+        logger.info("Ignoring duplicate Stripe event %s (%s)", event_id, event_type)
+        return JSONResponse({"status": "ok", "duplicate": True})
 
     try:
         if event_type == "checkout.session.completed":
@@ -224,6 +255,16 @@ async def stripe_webhook(request: Request) -> JSONResponse:
     except Exception as exc:
         logger.exception("Stripe webhook handler error for %s: %s", event_type, exc)
         _send_telegram_payment_alert(text=f"❌ Stripe webhook error: {event_type}")
+        # Allow Stripe to retry — remove claim so replay can reprocess.
+        if event_id:
+            try:
+                with get_connection() as conn:
+                    conn.execute(
+                        "DELETE FROM stripe_webhook_events WHERE event_id = ?",
+                        (event_id,),
+                    )
+            except Exception:
+                logger.warning("Failed to release Stripe event claim %s", event_id)
         raise HTTPException(status_code=500, detail="Webhook processing failed") from exc
 
     return JSONResponse({"status": "ok"})

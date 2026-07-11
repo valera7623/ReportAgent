@@ -7,10 +7,12 @@ Requirements:
  - No authentication middleware (see app/middleware/auth.py exemption).
  - Validates webhook signature; invalid signatures return 401.
  - Updates local payments/subscriptions and sends Telegram notifications.
+ - Processing errors return 5xx so YooKassa can retry.
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -22,7 +24,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.payments.usage_tracker import activate_subscription, cancel_subscription
+from app.payments.usage_tracker import activate_subscription
 from app.payments.yookassa_client import YooKassaClient, YooKassaClientError
 from app.db.database import get_connection
 from app.utils.logger import get_logger
@@ -59,12 +61,18 @@ def _verify_signature(raw_body: bytes, signature_header: str) -> bool:
         return False
 
     sig = signature_header.strip()
-    if sig.startswith("sha256="):
-        sig = sig.replace("sha256=", "", 1)
+    if not sig:
+        return False
+    if sig.lower().startswith("sha256="):
+        sig = sig.split("=", 1)[1].strip()
 
-    # If YooKassa sends a different format (base64), this will not match.
-    computed = hmac.new(YOOKASSA_SECRET_KEY.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(computed, sig)
+    key = YOOKASSA_SECRET_KEY.encode("utf-8")
+    digest = hmac.new(key, raw_body, hashlib.sha256).digest()
+    hex_digest = digest.hex()
+    b64_digest = base64.b64encode(digest).decode("ascii")
+
+    candidates = {hex_digest.lower(), b64_digest, digest.hex().upper()}
+    return any(hmac.compare_digest(sig, c) or hmac.compare_digest(sig.lower(), c.lower()) for c in candidates)
 
 
 def _send_telegram_payment_alert(*, text: str) -> None:
@@ -99,6 +107,20 @@ def _payment_method_type(payment_method: dict[str, Any] | None) -> str | None:
     if isinstance(t, str):
         return t
     return None
+
+
+def _should_cancel_on_payment_canceled(payment: dict[str, Any], metadata: dict[str, Any]) -> bool:
+    """Only cancel subscription when metadata explicitly marks a subscription churn event.
+
+    Abandoned/failed checkouts must NOT downgrade an active paid user.
+    """
+    if str(metadata.get("cancel_subscription") or "").lower() in ("1", "true", "yes"):
+        return True
+    if str(metadata.get("event_purpose") or "").lower() in ("subscription_cancel", "churn"):
+        return True
+    # Recurring charge failures may include subscription_id — still do not auto-cancel
+    # on payment.canceled alone (user may retry). Require explicit flag above.
+    return False
 
 
 @router.post("/yookassa", response_class=JSONResponse)
@@ -148,7 +170,6 @@ async def yookassa_webhook(request: Request) -> JSONResponse:
     description = payment.get("description")
     payment_method = payment.get("payment_method")
     payment_method_type = _payment_method_type(payment_method)
-    created_at = payment.get("created_at")
     captured_at = None
 
     if not user_id:
@@ -249,7 +270,6 @@ async def yookassa_webhook(request: Request) -> JSONResponse:
 
         elif event == "payment.canceled" or yookassa_status == "canceled":
             record_yookassa_payment(status="canceled", amount_rub=amount_cents / 100)
-            refresh_active_subscriptions_gauge()
             with get_connection() as conn:
                 conn.execute(
                     """
@@ -275,16 +295,27 @@ async def yookassa_webhook(request: Request) -> JSONResponse:
                     ),
                 )
 
-            if user_id:
+            # Do NOT cancel an active subscription on abandoned checkout.
+            if user_id and _should_cancel_on_payment_canceled(payment, metadata):
+                from app.payments.usage_tracker import cancel_subscription
+
                 cancel_subscription(user_id=str(user_id))
+                refresh_active_subscriptions_gauge()
+            else:
+                logger.info(
+                    "YooKassa payment.canceled for %s — subscription left unchanged",
+                    payment_id,
+                )
 
         else:
             logger.info("Ignoring YooKassa event=%s payment_id=%s status=%s", event, payment_id, yookassa_status)
 
     except Exception as exc:
         logger.exception("Failed to process YooKassa webhook: %s", exc)
-        _send_telegram_payment_alert(text=f"<b>ReportAgent · YooKassa webhook error</b>\n<code>{payment_id}</code>\n{exc}")
+        _send_telegram_payment_alert(
+            text=f"<b>ReportAgent · YooKassa webhook error</b>\n<code>{payment_id}</code>\n{exc}"
+        )
+        # Non-2xx so YooKassa retries delivery.
+        raise HTTPException(status_code=500, detail="Webhook processing failed") from exc
 
-    # YooKassa expects 200 (2xx) ASAP. Body is ignored.
     return JSONResponse({"status": "ok"})
-

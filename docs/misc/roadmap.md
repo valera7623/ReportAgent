@@ -2,10 +2,10 @@
 
 ## Ближайшие планы
 
-- [ ] PostgreSQL как опция вместо SQLite
+- [x] Scheduled reports API + Celery Beat (`/api/scheduled-reports`)
+- [x] OAuth scaffold (Google / Microsoft redirect flows)
+- [ ] PostgreSQL production adapter (helper in `app/db/postgres.py`)
 - [ ] Расширенные шаблоны отчётов (брендинг)
-- [ ] Scheduled reports (cron через Celery Beat)
-- [ ] OAuth (Google/Microsoft login)
 - [ ] Multi-language reports
 
 ## В работе
@@ -14,6 +14,8 @@
 - [x] Email/password auth
 - [x] Preview before send
 - [x] Stripe + ЮKassa billing
+- [x] Voice SPA (`/app#/voice`)
+- [x] Pytest smoke + CI ruff
 
 ## Идеи
 

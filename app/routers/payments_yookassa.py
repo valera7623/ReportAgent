@@ -298,19 +298,28 @@ async def admin_get_payment(payment_id: str) -> dict[str, Any]:
 
 @admin_router.post("/refund/{payment_id}", dependencies=[Depends(admin_required)], response_model=AdminRefundResponse)
 async def admin_refund_payment(payment_id: str) -> AdminRefundResponse:
+    from app.payments.usage_tracker import downgrade_after_refund
+
     with get_connection() as conn:
-        row = conn.execute("SELECT payment_id, user_id, amount, currency, status FROM payments WHERE payment_id = ?", (payment_id,)).fetchone()
+        row = conn.execute(
+            "SELECT payment_id, user_id, amount, currency, status FROM payments WHERE payment_id = ?",
+            (payment_id,),
+        ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Payment not found")
         if (row["status"] or "").lower() != "succeeded":
             raise HTTPException(status_code=400, detail="Refund is allowed only for succeeded payments")
         amount_cents = int(row["amount"])
+        user_id = str(row["user_id"])
 
     try:
         client = _client()
         refund = await client.refund_payment(payment_id, amount=amount_cents)
     except YooKassaClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    downgrade_after_refund(user_id=user_id, payment_id=payment_id)
+    refresh_active_subscriptions_gauge()
 
     return AdminRefundResponse(payment_id=payment_id, refund=refund)
 
