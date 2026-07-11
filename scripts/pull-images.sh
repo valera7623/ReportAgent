@@ -9,11 +9,11 @@ TRAEFIK_IMAGE="${TRAEFIK_IMAGE:-traefik:v3.0}"
 REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}"
 OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}"
 
-PROMETHEUS_IMAGE="${PROMETHEUS_IMAGE:-prom/prometheus:latest}"
-GRAFANA_IMAGE="${GRAFANA_IMAGE:-grafana/grafana:latest}"
-ALERTMANAGER_IMAGE="${ALERTMANAGER_IMAGE:-prom/alertmanager:latest}"
-NODE_EXPORTER_IMAGE="${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}"
-CADVISOR_IMAGE="${CADVISOR_IMAGE:-gcr.io/cadvisor/cadvisor:latest}"
+PROMETHEUS_IMAGE="${PROMETHEUS_IMAGE:-prom/prometheus:v2.55.1}"
+GRAFANA_IMAGE="${GRAFANA_IMAGE:-grafana/grafana:11.3.0}"
+ALERTMANAGER_IMAGE="${ALERTMANAGER_IMAGE:-prom/alertmanager:v0.27.0}"
+NODE_EXPORTER_IMAGE="${NODE_EXPORTER_IMAGE:-prom/node-exporter:v1.8.2}"
+CADVISOR_IMAGE="${CADVISOR_IMAGE:-gcr.io/cadvisor/cadvisor:v0.49.1}"
 
 pull_one() {
   local image="$1"
