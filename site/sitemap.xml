@@ -190,6 +190,13 @@
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/roadmap/"/>
     </url>
     <url>
+        <loc>https://reportagent.fileguardian.info/help/misc/telderi-listing/</loc>
+        <lastmod>2026-07-11</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/telderi-listing/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/telderi-listing/"/>
+    </url>
+    <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/getting-started/</loc>
         <lastmod>2026-07-11</lastmod>
         <changefreq>daily</changefreq>
@@ -426,6 +433,13 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/roadmap/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/roadmap/"/>
+    </url>
+    <url>
+        <loc>https://reportagent.fileguardian.info/help/en/misc/telderi-listing/</loc>
+        <lastmod>2026-07-11</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/telderi-listing/"/>
+        <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/telderi-listing/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/getting-started/</loc>
