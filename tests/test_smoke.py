@@ -6,7 +6,8 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _test_env(monkeypatch):
+def _test_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
     monkeypatch.setenv("DOMAIN", "localhost")
     monkeypatch.setenv("DISABLE_AUTH", "false")
     monkeypatch.setenv("BILLING_ENABLED", "false")

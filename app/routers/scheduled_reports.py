@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.db.database import get_connection
@@ -156,8 +157,8 @@ async def update_scheduled_report(
     return _row_to_dict(row)
 
 
-@router.delete("/{schedule_id}", status_code=204)
-async def delete_scheduled_report(request: Request, schedule_id: str) -> None:
+@router.delete("/{schedule_id}", status_code=204, response_class=Response)
+async def delete_scheduled_report(request: Request, schedule_id: str) -> Response:
     user_id = _require_user_id(request)
     with get_connection() as conn:
         cur = conn.execute(
@@ -166,3 +167,4 @@ async def delete_scheduled_report(request: Request, schedule_id: str) -> None:
         )
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Schedule not found")
+    return Response(status_code=204)
