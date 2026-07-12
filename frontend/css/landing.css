@@ -59,7 +59,10 @@ img { max-width: 100%; height: auto; display: block; }
 .lp-logo {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  flex-shrink: 0;
+  max-width: min(168px, 38vw);
+  overflow: hidden;
+  line-height: 0;
   font-weight: 700;
   color: var(--lp-text);
   text-decoration: none;
@@ -68,8 +71,12 @@ img { max-width: 100%; height: auto; display: block; }
 .lp-logo:hover { text-decoration: none; opacity: 0.9; }
 
 .lp-logo img {
-  height: 36px;
+  display: block;
+  height: 32px;
   width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .lp-nav {
@@ -90,6 +97,13 @@ img { max-width: 100%; height: auto; display: block; }
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .lp-logo { max-width: 120px; }
+  .lp-logo img { height: 28px; }
+  .lp-header-actions .lp-btn { padding: 0.5rem 0.75rem; font-size: 0.82rem; }
 }
 
 .lp-btn {
