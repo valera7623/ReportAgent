@@ -153,7 +153,10 @@ if [[ "${SKIP_PULL:-0}" != "1" ]]; then
         echo "Redis pull failed. Set REDIS_IMAGE mirror in .env or SKIP_PULL=1"
         exit 1
       }
-    OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}" ./scripts/pull-images.sh observability-only || true
+    OBSERVABILITY_HOST_METRICS="${OBSERVABILITY_HOST_METRICS:-true}" ./scripts/pull-images.sh observability-only || {
+      echo "Observability image pull failed. Set PROMETHEUS_IMAGE/GRAFANA_IMAGE in .env or retry later."
+      exit 1
+    }
   fi
 else
   echo "==> SKIP_PULL=1 — skipping docker pull"
@@ -164,7 +167,7 @@ docker compose "${COMPOSE_ARGS[@]}" "${COMPOSE_PROFILE_ARGS[@]}" down --remove-o
   docker compose "${COMPOSE_ARGS[@]}" down --remove-orphans
 
 echo "==> Starting stack"
-docker compose "${COMPOSE_ARGS[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --pull never
+docker compose "${COMPOSE_ARGS[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --pull missing
 
 echo "==> Pruning dangling images"
 docker system prune -f
