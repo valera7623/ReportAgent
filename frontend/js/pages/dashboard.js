@@ -1,4 +1,4 @@
-import { dashboardApi, paymentsApi, previewApi, reportsApi, aiApi, onError } from "../api.js";
+import { dashboardApi, paymentsApi, previewApi, reportsApi, analyzeWithFallback, onError } from "../api.js";
 import { openPreviewModal, showPreviewLoading } from "../components/PreviewModal.js";
 import { bindDownloadButtons, downloadSuccessMessage, pollTaskAndDownload, pollTaskUntilSuccess } from "../download.js";
 import { EXTERNAL_FORMAT_LABELS, EXTERNAL_FORMATS } from "../config.js";
@@ -212,7 +212,7 @@ function bindPreviewForm(root) {
 
     const submitBtn = form.querySelector("#preview-submit-btn");
     submitBtn.disabled = true;
-    let hideLoading = showPreviewLoading("AI-анализ данных…");
+    let hideLoading = showPreviewLoading("Генерация превью…");
 
     try {
       let uploadFile = hasFile ? await snapshotUploadFile(file) : null;
@@ -225,27 +225,24 @@ function bindPreviewForm(root) {
       if (uploadFile) uploadFd.append("file", uploadFile);
       if (sheets) uploadFd.append("sheets_url", sheets);
 
-      let aiResult;
-      try {
-        aiResult = await aiApi.analyze(uploadFd);
-      } catch (aiErr) {
-        hideLoading();
-        hideLoading = showPreviewLoading("AI недоступен — создаём превью…");
-        aiResult = null;
-        console.warn("AI analyze failed:", aiErr);
-      }
-
+      // AI optional: short timeout, report/preview always continues without it
+      hideLoading();
+      hideLoading = showPreviewLoading("AI-анализ (необязательно)…");
+      const aiResult = await analyzeWithFallback(uploadFd);
       if (aiResult) {
         hideLoading();
-        hideLoading = showPreviewLoading("Создание AI-превью…");
+        hideLoading = showPreviewLoading("Создание превью…");
         await runPreviewFlow(uploadFd, form, hasFile, uploadFile, sheets, hideLoading, aiResult);
         hideLoading = () => {};
         toast("Проверьте превью перед генерацией отчёта", "info");
         return;
       }
 
+      hideLoading();
+      hideLoading = showPreviewLoading("AI недоступен — создаём отчёт без нейросети…");
       await runPreviewFlow(uploadFd, form, hasFile, uploadFile, sheets, hideLoading);
       hideLoading = () => {};
+      toast("Превью без AI — отчёт будет с базовой статистикой и графиками", "info");
     } catch (err) {
       hideLoading();
       onError(err);

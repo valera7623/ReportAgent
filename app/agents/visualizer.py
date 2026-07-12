@@ -316,6 +316,69 @@ def _charts_from_ai_suggestions(
     return paths
 
 
+def _append_heuristic_charts(
+    chart_paths: list[str],
+    *,
+    df: pd.DataFrame,
+    chart_dir: Path,
+    palette: dict[str, str],
+    numeric_cols: list[str],
+    text_cols: list[str],
+    preferred_chart: str,
+    pie_columns: list[str],
+    max_charts: int = 3,
+) -> list[str]:
+    """Fill missing charts with pandas/matplotlib heuristics (no OpenAI)."""
+    paths = list(chart_paths)
+
+    def add(path: Path, saver) -> None:
+        if len(paths) >= max_charts:
+            return
+        target = str(path)
+        if target in paths:
+            return
+        if saver():
+            paths.append(target)
+
+    if not paths:
+        if preferred_chart == "line" and numeric_cols:
+            add(
+                chart_dir / "chart_numeric_trend.png",
+                lambda: _save_line_trend(df, numeric_cols[0], chart_dir / "chart_numeric_trend.png", f"Trend: {numeric_cols[0]}", palette),
+            )
+        elif numeric_cols:
+            add(
+                chart_dir / "chart_numeric_hist.png",
+                lambda: _save_bar_chart(df, numeric_cols[0], chart_dir / "chart_numeric_hist.png", f"Distribution: {numeric_cols[0]}", palette),
+            )
+
+    if len(numeric_cols) > 1 and len(paths) < 2:
+        add(
+            chart_dir / "chart_numeric_trend.png",
+            lambda: _save_line_trend(df, numeric_cols[1], chart_dir / "chart_numeric_trend.png", f"Trend: {numeric_cols[1]}", palette),
+        )
+    elif preferred_chart != "line" and numeric_cols and len(paths) < 2:
+        add(
+            chart_dir / "chart_numeric_trend.png",
+            lambda: _save_line_trend(df, numeric_cols[0], chart_dir / "chart_numeric_trend.png", f"Trend: {numeric_cols[0]}", palette),
+        )
+
+    if text_cols and len(paths) < max_charts:
+        cat_col = pie_columns[0] if pie_columns else text_cols[0]
+        if preferred_chart == "pie" and cat_col in (pie_columns or text_cols):
+            add(
+                chart_dir / "chart_categorical_pie.png",
+                lambda: _save_pie_chart(df, cat_col, chart_dir / "chart_categorical_pie.png", f"Distribution: {cat_col}", palette),
+            )
+        else:
+            add(
+                chart_dir / "chart_categorical_top.png",
+                lambda: _save_top_bar(df, cat_col, chart_dir / "chart_categorical_top.png", f"Top values: {cat_col}", palette),
+            )
+
+    return paths
+
+
 @with_self_healing("visualizer")
 @track_agent_metrics("visualizer")
 def run_visualizer(analyzed: dict[str, Any], preferences: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -337,39 +400,22 @@ def run_visualizer(analyzed: dict[str, Any], preferences: dict[str, Any] | None 
         ai_suggestions = analyzed.get("ai_suggestions") or {}
         if ai_suggestions.get("suggested_charts"):
             chart_paths = _charts_from_ai_suggestions(df, ai_suggestions, chart_dir, palette)
+            if not chart_paths:
+                logger.warning("AI chart suggestions produced no charts — using heuristics")
 
         numeric_cols: list[str] = analyzed.get("numeric_columns") or []
         text_cols: list[str] = analyzed.get("text_columns") or []
 
-        if not chart_paths:
-            if preferred_chart == "line" and numeric_cols:
-                path = chart_dir / "chart_numeric_trend.png"
-                if _save_line_trend(df, numeric_cols[0], path, f"Trend: {numeric_cols[0]}", palette):
-                    chart_paths.append(str(path))
-            elif numeric_cols:
-                path = chart_dir / "chart_numeric_hist.png"
-                if _save_bar_chart(df, numeric_cols[0], path, f"Distribution: {numeric_cols[0]}", palette):
-                    chart_paths.append(str(path))
-
-            if len(numeric_cols) > 1 and len(chart_paths) < 2:
-                path = chart_dir / "chart_numeric_trend.png"
-                if _save_line_trend(df, numeric_cols[1], path, f"Trend: {numeric_cols[1]}", palette):
-                    chart_paths.append(str(path))
-            elif preferred_chart != "line" and numeric_cols and len(chart_paths) < 2:
-                path = chart_dir / "chart_numeric_trend.png"
-                if _save_line_trend(df, numeric_cols[0], path, f"Trend: {numeric_cols[0]}", palette):
-                    chart_paths.append(str(path))
-
-            if text_cols and len(chart_paths) < 3:
-                cat_col = pie_columns[0] if pie_columns else text_cols[0]
-                if preferred_chart == "pie" and cat_col in (pie_columns or text_cols):
-                    path = chart_dir / "chart_categorical_pie.png"
-                    saved = _save_pie_chart(df, cat_col, path, f"Distribution: {cat_col}", palette)
-                else:
-                    path = chart_dir / "chart_categorical_top.png"
-                    saved = _save_top_bar(df, cat_col, path, f"Top values: {cat_col}", palette)
-                if saved:
-                    chart_paths.append(str(path))
+        chart_paths = _append_heuristic_charts(
+            chart_paths,
+            df=df,
+            chart_dir=chart_dir,
+            palette=palette,
+            numeric_cols=numeric_cols,
+            text_cols=text_cols,
+            preferred_chart=preferred_chart,
+            pie_columns=pie_columns,
+        )
 
         if not chart_paths:
             raise AgentError(

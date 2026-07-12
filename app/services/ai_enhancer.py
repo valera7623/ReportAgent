@@ -10,6 +10,11 @@ from typing import Any
 
 import pandas as pd
 
+try:
+    from openai import APIConnectionError, APITimeoutError, RateLimitError
+except ImportError:  # pragma: no cover
+    APIConnectionError = APITimeoutError = RateLimitError = ()  # type: ignore[misc, assignment]
+
 from app.prompts.report_prompts import AI_RESPONSE_JSON_SCHEMA_HINT, FEW_SHOT_EXAMPLES, SYSTEM_PROMPT
 from app.services import ai_cache
 from app.utils.logger import get_logger
@@ -21,6 +26,25 @@ DATE_KEYWORDS = ("date", "time", "day", "month", "year", "week", "period", "date
 VALID_CHART_TYPES = frozenset({"bar", "line", "pie", "scatter", "area", "heatmap"})
 VALID_AGGREGATIONS = frozenset({"sum", "mean", "median", "count", "min", "max"})
 MAX_RETRIES = 3
+AI_ENHANCER_TIMEOUT_SEC = float(os.getenv("AI_ENHANCER_TIMEOUT_SEC", os.getenv("OPENAI_TIMEOUT_SEC", "12")))
+
+
+def _ai_unavailable_error(exc: Exception) -> bool:
+    """Connection/timeout — fall back to heuristics immediately (no retry storm)."""
+    if isinstance(exc, (APIConnectionError, APITimeoutError)):
+        return True
+    msg = str(exc).lower()
+    return any(
+        token in msg
+        for token in (
+            "connection",
+            "timeout",
+            "timed out",
+            "unreachable",
+            "connect error",
+            "name or service not known",
+        )
+    )
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -190,7 +214,7 @@ class AIEnhancer:
             return result
 
     def _analyze_with_ai(self, df: pd.DataFrame) -> dict[str, Any]:
-        client = create_openai_client()
+        client = create_openai_client(timeout=AI_ENHANCER_TIMEOUT_SEC)
         prompt = self._build_prompt(self._prepare_data_preview(df), df.shape)
         last_error: Exception | None = None
 
@@ -210,6 +234,13 @@ class AIEnhancer:
                 return json.loads(content)
             except Exception as exc:
                 last_error = exc
+                if _ai_unavailable_error(exc):
+                    logger.warning("AI Enhancer unavailable (no retry): %s", exc)
+                    raise
+                if isinstance(exc, RateLimitError) and attempt < MAX_RETRIES:
+                    logger.warning("AI Enhancer rate limited, retry %d/%d", attempt, MAX_RETRIES)
+                    time.sleep(1.0 * attempt)
+                    continue
                 logger.warning("AI Enhancer attempt %d/%d failed: %s", attempt, MAX_RETRIES, exc)
                 if attempt < MAX_RETRIES:
                     time.sleep(0.5 * attempt)

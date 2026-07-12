@@ -130,8 +130,13 @@ export const previewApi = {
 };
 
 export const aiApi = {
-  analyze: (formData) =>
-    api("/api/reports/analyze", { method: "POST", body: formData, headers: headers(false) }),
+  analyze: (formData, options = {}) =>
+    api("/api/reports/analyze", {
+      method: "POST",
+      body: formData,
+      headers: headers(false),
+      ...options,
+    }),
   generateWithAi: (formData) =>
     api("/api/reports/generate-with-ai", {
       method: "POST",
@@ -139,6 +144,26 @@ export const aiApi = {
       headers: headers(false),
     }),
 };
+
+const AI_ANALYZE_TIMEOUT_MS = 8000;
+
+/** AI recommendations with timeout — returns null if AI is slow/unavailable. */
+export async function analyzeWithFallback(formData, timeoutMs = AI_ANALYZE_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await aiApi.analyze(formData, { signal: controller.signal });
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      console.warn("AI analyze timed out — continuing without AI");
+      return null;
+    }
+    console.warn("AI analyze failed:", err);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export const keysApi = {
   list: () => api("/api/keys"),
