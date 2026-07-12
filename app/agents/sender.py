@@ -28,6 +28,8 @@ from app.utils.metrics import track_agent_metrics
 logger = get_logger("agent_sender", "log_sender.log")
 
 PDF_BASE_DIR = Path(os.getenv("PDF_DIR", "/app/storage/pdfs"))
+PDF_MAX_DATA_ROWS = int(os.getenv("PDF_MAX_DATA_ROWS", "10000"))
+PDF_MAX_DATA_COLS = int(os.getenv("PDF_MAX_DATA_COLS", "12"))
 SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -140,28 +142,31 @@ def _append_data_sample(
     *,
     heading_style: ParagraphStyle,
     body_style: ParagraphStyle,
-    limit: int = 50,
-    max_cols: int = 6,
+    limit: int | None = None,
+    max_cols: int | None = None,
 ) -> None:
     columns: list[str] = list(visualized.get("columns") or [])
     data: list[Any] = visualized.get("data") or []
     if not columns or not data:
         return
 
-    shown_cols = columns[:max_cols]
+    row_limit = PDF_MAX_DATA_ROWS if limit is None else limit
+    col_limit = PDF_MAX_DATA_COLS if max_cols is None else max_cols
+    shown_cols = columns[:col_limit] if col_limit > 0 else columns
     total_rows = int(visualized.get("row_count") or len(data))
-    shown_rows = min(limit, len(data))
+    shown_rows = min(row_limit, len(data)) if row_limit > 0 else len(data)
     cell_style = _table_cell_style(body_style)
     header_style = _table_cell_style(body_style, header=True)
 
-    story.append(Paragraph("Data Sample", heading_style))
-    story.append(
-        Paragraph(
-            f"Showing {shown_rows} of {total_rows} rows"
-            + (f" ({len(columns)} columns, first {len(shown_cols)} shown)" if len(columns) > max_cols else ""),
-            body_style,
-        )
-    )
+    section_title = "Data" if shown_rows >= total_rows else "Data Sample"
+    story.append(Paragraph(section_title, heading_style))
+    if shown_rows >= total_rows:
+        row_note = f"{total_rows} rows"
+    else:
+        row_note = f"Showing {shown_rows} of {total_rows} rows"
+    if len(columns) > len(shown_cols):
+        row_note += f" ({len(columns)} columns, first {len(shown_cols)} shown)"
+    story.append(Paragraph(row_note, body_style))
 
     table_data: list[list[Any]] = [shown_cols]
     for row in data[:shown_rows]:
