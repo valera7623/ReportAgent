@@ -196,22 +196,22 @@ def _validate_format_credentials(output_format: str) -> None:
 
 @app.get("/", response_model=None)
 async def root(request: Request) -> Response | dict[str, str]:
-    """SPA entry: HTML clients go to /app/ (preserve #/hash routes). API clients get JSON."""
+    """Marketing landing for browsers; JSON service map for API clients."""
     accept = request.headers.get("accept", "")
     if "text/html" in accept and "application/json" not in accept.split(",")[0]:
-        html = """<!DOCTYPE html>
-<html lang="ru"><head><meta charset="utf-8"><title>ReportAgent</title>
-<script>
-  const hash = window.location.hash || "#/dashboard";
-  window.location.replace("/app/" + hash);
-</script>
-<noscript><meta http-equiv="refresh" content="0;url=/app/"></noscript>
-</head><body><p><a href="/app/">ReportAgent</a></p></body></html>"""
-        return Response(content=html, media_type="text/html; charset=utf-8")
+        landing = _FRONTEND_DIR / "landing.html"
+        if landing.is_file():
+            return FileResponse(landing, media_type="text/html; charset=utf-8")
+        return Response(
+            content='<meta http-equiv="refresh" content="0;url=/app/">',
+            media_type="text/html; charset=utf-8",
+        )
     return {
         "service": "ReportAgent",
+        "landing": "/",
         "app": "/app/",
         "docs": "/docs",
+        "help": "/help/",
         "health": "/health",
         "sample_csv": "/samples/sample_sales.csv",
         "auth": "/auth/register",

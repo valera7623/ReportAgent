@@ -14,6 +14,8 @@ router = APIRouter(tags=["seo"])
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 
 _PUBLIC_PATHS = [
+    "/",
+    "/help/",
     "/app/",
     "/app/#/login",
     "/app/#/register",

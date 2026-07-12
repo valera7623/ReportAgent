@@ -80,6 +80,7 @@
 
 | Раздел | URL |
 |--------|-----|
+| **Лендинг (продвижение)** | https://reportagent.fileguardian.info/ |
 | Личный кабинет | https://reportagent.fileguardian.info/app#/ |
 | Тарифы (Stripe) | https://reportagent.fileguardian.info/app#/pricing |
 | Тарифы (ЮKassa) | https://reportagent.fileguardian.info/app#/pricing-yookassa |

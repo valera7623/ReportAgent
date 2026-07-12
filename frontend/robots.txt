@@ -1,6 +1,9 @@
 User-agent: *
 Allow: /
 
+# Marketing landing and docs
+Allow: /help/
+
 # SPA dashboard (hash routes served from /app/)
 Allow: /app/
 
