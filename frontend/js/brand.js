@@ -10,5 +10,5 @@ export function brandLogoHtml({ variant = "sidebar", className = "" } = {}) {
   const cls = ["brand-logo", variant === "full" ? "brand-logo--full" : "brand-logo--sidebar", className]
     .filter(Boolean)
     .join(" ");
-  return `<img src="${src}" alt="${BRAND_NAME}" class="${cls}" width="220" height="40" decoding="async" />`;
+  return `<img src="${src}" alt="${BRAND_NAME}" class="${cls}" decoding="async" />`;
 }

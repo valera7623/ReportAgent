@@ -43,7 +43,7 @@ def main() -> int:
 
     if logo_src.is_file():
         logo = Image.open(logo_src).convert("RGBA")
-        logo.thumbnail((280, 40), Image.Resampling.LANCZOS)
+        logo.thumbnail((420, 72), Image.Resampling.LANCZOS)
         logo.save(ASSETS / "logo-sidebar.png", optimize=True)
         og = Image.new("RGBA", (1200, 630), (15, 23, 42, 255))
         logo_og = Image.open(logo_src).convert("RGBA")
