@@ -2,490 +2,490 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
     <url>
         <loc>https://reportagent.fileguardian.info/help/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/nginx-grafana-smdg-setup/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/nginx-grafana-smdg-setup/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/nginx-grafana-smdg-setup/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/admin-guide/backup/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/backup/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/backup/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/admin-guide/configuration/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/configuration/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/configuration/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/admin-guide/deployment/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/deployment/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/deployment/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/admin-guide/monitoring/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/monitoring/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/monitoring/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/admin/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/admin/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/admin/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/auth/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/auth/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/auth/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/payments/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/payments/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/payments/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/preview/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/preview/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/preview/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/reports/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/reports/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/reports/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/voice/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/voice/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/voice/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/api/webhooks/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/webhooks/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/webhooks/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/deployment/ci-cd/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/ci-cd/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/ci-cd/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/deployment/docker/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/docker/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/docker/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/deployment/environment-variables/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/environment-variables/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/environment-variables/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/deployment/vps/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/vps/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/vps/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/developer-guide/agents/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/agents/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/agents/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/developer-guide/architecture/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/architecture/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/architecture/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/developer-guide/database-schema/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/database-schema/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/database-schema/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/developer-guide/migrations/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/migrations/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/migrations/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/developer-guide/self-healing/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/self-healing/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/self-healing/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/misc/changelog/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/changelog/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/changelog/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/misc/faq/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/faq/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/faq/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/misc/glossary/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/glossary/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/glossary/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/misc/roadmap/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/roadmap/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/roadmap/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/misc/telderi-listing/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/telderi-listing/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/telderi-listing/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/getting-started/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/getting-started/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/getting-started/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/output-formats/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/output-formats/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/output-formats/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/preferences/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/preferences/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/preferences/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/preview/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/preview/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/preview/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/reports/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/reports/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/reports/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/subscription/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/subscription/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/subscription/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/user-guide/voice/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/voice/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/voice/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/nginx-grafana-smdg-setup/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/nginx-grafana-smdg-setup/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/nginx-grafana-smdg-setup/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/admin-guide/backup/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/backup/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/backup/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/admin-guide/configuration/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/configuration/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/configuration/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/admin-guide/deployment/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/deployment/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/deployment/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/admin-guide/monitoring/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/admin-guide/monitoring/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/admin-guide/monitoring/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/admin/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/admin/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/admin/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/auth/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/auth/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/auth/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/payments/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/payments/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/payments/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/preview/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/preview/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/preview/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/reports/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/reports/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/reports/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/voice/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/voice/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/voice/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/api/webhooks/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/api/webhooks/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/api/webhooks/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/deployment/ci-cd/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/ci-cd/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/ci-cd/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/deployment/docker/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/docker/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/docker/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/deployment/environment-variables/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/environment-variables/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/environment-variables/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/deployment/vps/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/deployment/vps/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/deployment/vps/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/developer-guide/agents/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/agents/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/agents/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/developer-guide/architecture/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/architecture/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/architecture/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/developer-guide/database-schema/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/database-schema/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/database-schema/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/developer-guide/migrations/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/migrations/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/migrations/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/developer-guide/self-healing/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/developer-guide/self-healing/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/developer-guide/self-healing/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/misc/changelog/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/changelog/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/changelog/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/misc/faq/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/faq/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/faq/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/misc/glossary/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/glossary/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/glossary/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/misc/roadmap/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/roadmap/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/roadmap/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/misc/telderi-listing/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/misc/telderi-listing/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/misc/telderi-listing/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/getting-started/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/getting-started/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/getting-started/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/output-formats/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/output-formats/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/output-formats/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/preferences/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/preferences/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/preferences/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/preview/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/preview/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/preview/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/reports/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/reports/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/reports/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/subscription/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/subscription/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/subscription/"/>
     </url>
     <url>
         <loc>https://reportagent.fileguardian.info/help/en/user-guide/voice/</loc>
-        <lastmod>2026-07-11</lastmod>
+        <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://reportagent.fileguardian.info/help/en/user-guide/voice/"/>
         <xhtml:link rel="alternate" hreflang="ru" href="https://reportagent.fileguardian.info/help/user-guide/voice/"/>
