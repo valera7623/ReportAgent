@@ -23,7 +23,7 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
       - VOICE_ENABLED=${VOICE_ENABLED:-true}
       - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
-      - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
+      - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg,webm}
       - FORMATTED_DIR=/app/storage/formatted
       - PREVIEW_DIR=/app/storage/temp
       - DEFAULT_OUTPUT_FORMAT=${DEFAULT_OUTPUT_FORMAT:-pdf}
@@ -107,7 +107,7 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
       - VOICE_ENABLED=${VOICE_ENABLED:-true}
       - MAX_AUDIO_SIZE_MB=${MAX_AUDIO_SIZE_MB:-25}
-      - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg}
+      - ALLOWED_AUDIO_FORMATS=${ALLOWED_AUDIO_FORMATS:-mp3,wav,m4a,ogg,webm}
       - FORMATTED_DIR=/app/storage/formatted
       - PREVIEW_DIR=/app/storage/temp
       - DEFAULT_OUTPUT_FORMAT=${DEFAULT_OUTPUT_FORMAT:-pdf}

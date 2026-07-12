@@ -8,6 +8,27 @@ import { onError } from "../api.js";
 let mediaRecorder = null;
 let audioChunks = [];
 let recording = false;
+let recorderMimeType = "audio/webm";
+
+function extensionFromMime(mime) {
+  const m = (mime || "").toLowerCase();
+  if (m.includes("webm")) return "webm";
+  if (m.includes("ogg")) return "ogg";
+  if (m.includes("mp4") || m.includes("m4a")) return "m4a";
+  if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
+  if (m.includes("wav")) return "wav";
+  return "webm";
+}
+
+function pickRecorderMimeType() {
+  const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
+  for (const type of types) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
+  }
+  return "audio/webm";
+}
 
 function apiKey() {
   return localStorage.getItem(API_KEY_STORAGE);
@@ -155,7 +176,9 @@ async function startRecording(btn) {
   }
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   audioChunks = [];
-  mediaRecorder = new MediaRecorder(stream);
+  recorderMimeType = pickRecorderMimeType();
+  const options = recorderMimeType ? { mimeType: recorderMimeType } : undefined;
+  mediaRecorder = new MediaRecorder(stream, options);
   mediaRecorder.ondataavailable = (e) => {
     if (e.data.size > 0) audioChunks.push(e.data);
   };
@@ -172,7 +195,8 @@ function stopRecording() {
       return;
     }
     mediaRecorder.onstop = () => {
-      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      const mime = mediaRecorder.mimeType || recorderMimeType || "audio/webm";
+      const blob = new Blob(audioChunks, { type: mime });
       mediaRecorder.stream.getTracks().forEach((t) => t.stop());
       recording = false;
       resolve(blob);
@@ -198,7 +222,7 @@ export async function renderVoice(root) {
           <button class="btn" id="voice-record">🎤 Начать запись</button>
           <label class="btn btn-outline" style="margin-left:.5rem;cursor:pointer">
             Загрузить аудио
-            <input type="file" id="voice-file" accept="audio/*,.m4a,.mp3,.wav,.ogg" hidden />
+            <input type="file" id="voice-file" accept="audio/*,.webm,.m4a,.mp3,.wav,.ogg" hidden />
           </label>
         </div>
       </div>
@@ -224,7 +248,8 @@ export async function renderVoice(root) {
               toast("Запись слишком короткая", "error");
               return;
             }
-            const result = await uploadVoice(blob);
+            const ext = extensionFromMime(blob.type);
+            const result = await uploadVoice(blob, `voice.${ext}`);
             if (result.status === "needs_clarification") {
               renderClarificationUI(el, result.task_id, result.clarification_question, result.transcript);
               return;

@@ -24,7 +24,7 @@ def max_audio_size_bytes() -> int:
 
 
 def allowed_audio_extensions() -> frozenset[str]:
-    raw = os.getenv("ALLOWED_AUDIO_FORMATS", "mp3,wav,m4a,ogg")
+    raw = os.getenv("ALLOWED_AUDIO_FORMATS", "mp3,wav,m4a,ogg,webm")
     return frozenset(ext.strip().lower().lstrip(".") for ext in raw.split(",") if ext.strip())
 
 
