@@ -3,6 +3,7 @@ import { dashboardApi, adminApi } from "../api.js";
 import { setApiKey, setJwt, clearJwt } from "../state.js";
 import { navigate } from "../router.js";
 import { toast } from "../ui.js";
+import { brandLogoHtml } from "../brand.js";
 
 export async function renderLogin(root, params = {}) {
   if (params.verified === "1") {
@@ -14,7 +15,7 @@ export async function renderLogin(root, params = {}) {
   root.innerHTML = `
     <div class="login-page">
       <div class="login-card">
-        <h1>ReportAgent</h1>
+        <div class="login-brand">${brandLogoHtml({ variant: "full", className: "brand-logo--auth" })}</div>
         <p class="seo-lead">Войдите в сервис генерации отчётов из CSV, Excel и Google Sheets с графиками и AI</p>
         <div class="tabs" style="display:flex;gap:.5rem;margin-bottom:1rem">
           <button type="button" class="btn btn-sm" id="tab-email" data-tab="email">Email</button>

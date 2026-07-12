@@ -1,6 +1,7 @@
 import { authApi } from "../api/auth.js";
 import { navigate } from "../router.js";
 import { toast } from "../ui.js";
+import { brandLogoHtml } from "../brand.js";
 
 export async function renderResetPassword(root, params = {}) {
   const token = params.token;
@@ -10,7 +11,7 @@ export async function renderResetPassword(root, params = {}) {
     root.innerHTML = `
       <div class="login-page">
         <div class="login-card">
-          <h1>🛡️ ReportAgent</h1>
+          <div class="login-brand">${brandLogoHtml({ variant: "full", className: "brand-logo--auth" })}</div>
           <p>Новый пароль</p>
           <form id="reset-confirm-form">
             <div class="form-group">
@@ -43,7 +44,7 @@ export async function renderResetPassword(root, params = {}) {
   root.innerHTML = `
     <div class="login-page">
       <div class="login-card">
-        <h1>🛡️ ReportAgent</h1>
+        <div class="login-brand">${brandLogoHtml({ variant: "full", className: "brand-logo--auth" })}</div>
         <p>Сброс пароля</p>
         <form id="reset-request-form">
           <div class="form-group">

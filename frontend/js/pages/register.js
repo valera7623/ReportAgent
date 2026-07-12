@@ -1,12 +1,13 @@
 import { authApi } from "../api/auth.js";
 import { navigate } from "../router.js";
 import { toast } from "../ui.js";
+import { brandLogoHtml } from "../brand.js";
 
 export async function renderRegister(root) {
   root.innerHTML = `
     <div class="login-page">
       <div class="login-card">
-        <h1>ReportAgent</h1>
+        <div class="login-brand">${brandLogoHtml({ variant: "full", className: "brand-logo--auth" })}</div>
         <p class="seo-lead">Создайте аккаунт и начните генерировать отчёты из таблиц за минуты</p>
         <p>Регистрация</p>
         <form id="register-form">

@@ -1,6 +1,7 @@
 import { state, subscribe, toggleSidebar, toggleTheme, logout } from "./state.js";
 import { navigate } from "./router.js";
 import { escapeHtml } from "./utils.js";
+import { brandLogoHtml } from "./brand.js";
 
 const userNavAll = [
   { path: "/dashboard", label: "Дашборд", icon: "📊" },
@@ -46,7 +47,7 @@ export function renderShell(contentHtml, title = "") {
       <div class="sidebar-backdrop" data-action="close-sidebar" aria-hidden="true"></div>
       <aside class="sidebar" id="app-sidebar" aria-label="Навигация">
         <div class="sidebar-brand">
-          <span>🛡️ ReportAgent</span>
+          <a href="#/dashboard" class="sidebar-brand-link">${brandLogoHtml({ variant: "sidebar" })}</a>
           <button type="button" class="sidebar-close btn-icon" data-action="close-sidebar" aria-label="Закрыть меню">&times;</button>
         </div>
         <nav class="sidebar-nav">

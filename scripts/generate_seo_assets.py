@@ -99,6 +99,11 @@ def write_ico(path: Path, sizes: list[int]) -> None:
 
 
 def main() -> None:
+    brand_source = ROOT / "assets" / "favicon-source.png"
+    if brand_source.is_file() and (ROOT / "favicon.ico").is_file():
+        print(f"Brand favicons present ({brand_source.name}); skipping procedural generation")
+        return
+
     ROOT.mkdir(parents=True, exist_ok=True)
     for size in (16, 32, 180):
         write_png(ROOT / f"favicon-{size}x{size}.png", size, size, icon_rgba)
