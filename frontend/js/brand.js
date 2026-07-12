@@ -3,7 +3,7 @@
 export const BRAND_NAME = "ReportAgent";
 
 export const BRAND_LOGO_SIDEBAR = "assets/logo-sidebar.png";
-export const BRAND_LOGO_FULL = "assets/logo.png";
+export const BRAND_LOGO_FULL = "assets/logo-cropped.png";
 
 export function brandLogoHtml({ variant = "sidebar", className = "" } = {}) {
   const src = variant === "full" ? BRAND_LOGO_FULL : BRAND_LOGO_SIDEBAR;

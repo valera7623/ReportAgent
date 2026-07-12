@@ -13,8 +13,8 @@
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0,0,0,.08);
   --sidebar-w: 280px;
-  --brand-logo-sidebar-h: 48px;
-  --brand-logo-auth-h: 72px;
+  --brand-logo-sidebar-h: 40px;
+  --brand-logo-auth-h: 48px;
 }
 
 [data-theme="dark"] {
@@ -37,12 +37,12 @@ a:hover { text-decoration: underline; }
 .login-page { min-height: 100vh; display: grid; place-items: center; padding: 1rem; background: linear-gradient(135deg, var(--bg) 0%, var(--border) 100%); }
 .login-card { width: 100%; max-width: 400px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem; box-shadow: var(--shadow); }
 .login-card h1 { margin: 0 0 .5rem; text-align: center; }
-.login-brand { display: flex; justify-content: center; align-items: center; margin: 0 0 1.5rem; padding: 1.25rem 1rem 1.75rem; background: #0a0f14; border-radius: var(--radius); overflow: visible; min-height: 72px; }
+.login-brand { display: flex; justify-content: center; align-items: center; margin: 0 0 1.5rem; padding: 1rem; background: #0a0f14; border-radius: var(--radius); overflow: hidden; min-height: 64px; }
 .login-card p { color: var(--text-muted); text-align: center; margin: 0 0 1.5rem; }
 .brand-logo { display: block; height: auto; object-fit: contain; }
-.brand-logo--sidebar { width: 100%; max-width: 100%; transform: scale(1.35); transform-origin: left center; }
+.brand-logo--sidebar { height: var(--brand-logo-sidebar-h); width: auto; max-width: 100%; }
 .brand-logo--full,
-.brand-logo--auth { width: min(100%, 400px); max-width: 100%; transform: scale(1.65); transform-origin: center center; }
+.brand-logo--auth { height: var(--brand-logo-auth-h); width: auto; max-width: 100%; }
 .sidebar-brand-link { display: flex; align-items: center; flex: 1; min-width: 0; line-height: 0; }
 .sidebar-brand-link:hover { text-decoration: none; opacity: .92; }
 
